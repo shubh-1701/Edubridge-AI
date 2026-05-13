@@ -1,0 +1,47 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme {
+  --font-sans: "Inter", "sans-serif";
+  --font-heading: "Outfit", "sans-serif";
+  --color-primary: #3b82f6;
+  --color-primary-foreground: #ffffff;
+  --color-background: #0f172a;
+  --color-foreground: #f8fafc;
+  --color-card: #1e293b;
+  --color-card-foreground: #f8fafc;
+  --color-border: #334155;
+  --color-ring: #3b82f6;
+}
+
+body {
+  color: var(--color-foreground);
+  background: var(--color-background);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@layer utilities {
+  .perspective-1000 {
+    perspective: 1000px;
+  }
+  .preserve-3d {
+    transform-style: preserve-3d;
+  }
+  .backface-hidden {
+    backface-visibility: hidden;
+  }
+  .rotate-y-180 {
+    transform: rotateY(180deg);
+  }
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+}
+
+* {
+  border-color: var(--color-border);
+  outline-color: var(--color-ring);
+}
