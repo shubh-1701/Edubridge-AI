@@ -168,7 +168,7 @@ export default function Chat() {
     if (typeof window === "undefined" || !chatContainerRef.current) return;
     const html2pdf = (await import("html2pdf.js")).default;
     const element = chatContainerRef.current;
-    const opt = {
+    const opt: any = {
       margin:       1,
       filename:     `${profile?.subject}_Notes.pdf`,
       image:        { type: 'jpeg', quality: 0.98 },
