@@ -71,8 +71,8 @@ export async function POST(req: Request) {
       if (action === "quiz") {
         return NextResponse.json({ reply: '[{"question": "What is the core concept we just discussed?", "answer": "The core concept."}, {"question": "How do you apply it?", "answer": "By practicing."}, {"question": "What is the next step?", "answer": "Mastery."}]' });
       }
-
-      if (standard.includes("6") || standard.includes("7") || standard.includes("Primary")) {
+      const std = profile.standard || profile.level || "";
+      if (std.includes("6") || std.includes("7") || std.includes("Primary")) {
          mockReply += "\n\nThink of it like this: it's like learning to ride a bike. \n\n![Bike](https://image.pollinations.ai/prompt/bicycle?width=800&height=400&nologo=true)\n\n[🎥 Watch Video Tutorial](https://www.youtube.com/results?search_query=how+to+ride+a+bike)";
       } else {
          mockReply += "\n\nLet's dive deeper into that. Here is a step-by-step breakdown...\n\n[🎥 Watch Video Tutorial](https://www.youtube.com/results?search_query=advanced+topics)";
