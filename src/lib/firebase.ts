@@ -4,12 +4,12 @@ import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBeyqML5BAzxtxa_ugm4aXmUl89U9re6RY",
-  authDomain: "edubridge-ai-2cbeb.firebaseapp.com",
-  projectId: "edubridge-ai-2cbeb",
-  storageBucket: "edubridge-ai-2cbeb.firebasestorage.app",
-  messagingSenderId: "526806493940",
-  appId: "1:526806493940:web:1622e3377508dd466c0ca1"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
 };
 
 const isConfigured = !!firebaseConfig.apiKey && firebaseConfig.apiKey !== "dummy_key";
