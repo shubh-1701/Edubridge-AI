@@ -9,6 +9,9 @@ const outfit = Outfit({ subsets: ["latin"], variable: "--font-outfit" });
 export const metadata: Metadata = {
   title: "EduBridge AI",
   description: "Hyper-personalized learning assistant",
+  verification: {
+    google: "htTgGWah9NPYFZ94lnIUtK3QzAO-XbcVnfmOo-j09Zo",
+  },
 };
 
 export default function RootLayout({
