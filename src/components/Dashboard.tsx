@@ -1,9 +1,9 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { BookOpen, Play, Settings, Star, LogOut, Trash2, Edit3, Map, CheckCircle2, Loader2, MessageSquare, Link } from "lucide-react";
+import { BookOpen, Play, Settings, Star, LogOut, Trash2, Edit3, Map, CheckCircle2, Loader2, MessageSquare, Link, Video, X } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
-import { loadData, removeData } from "@/lib/db";
+import { loadData, removeData, saveData } from "@/lib/db";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 
@@ -20,6 +20,8 @@ export default function Dashboard() {
   const [showSettings, setShowSettings] = useState(false);
   const [roadmap, setRoadmap] = useState<RoadmapStep[]>([]);
   const [isLoadingRoadmap, setIsLoadingRoadmap] = useState(false);
+  const [liveTeacherClassCode, setLiveTeacherClassCode] = useState<string | null>(null);
+  const [isJoiningLive, setIsJoiningLive] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -51,6 +53,43 @@ export default function Dashboard() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Listen to Teacher Live Status
+  useEffect(() => {
+    let unsubscribe: any;
+    
+    const listenToTeacher = async (code: string) => {
+      try {
+        const { db } = await import("@/lib/firebase");
+        if (db) {
+          const { collection, query, where, onSnapshot } = await import("firebase/firestore");
+          const q = query(collection(db, "users"), where("classCode", "==", code), where("role", "==", "teacher"));
+          
+          unsubscribe = onSnapshot(q, (snapshot) => {
+            if (!snapshot.empty) {
+              const teacherDoc = snapshot.docs[0].data();
+              if (teacherDoc.isLive) {
+                setLiveTeacherClassCode(code);
+              } else {
+                setLiveTeacherClassCode(null);
+                setIsJoiningLive(false); // Auto-kick if teacher ends session
+              }
+            }
+          });
+        }
+      } catch (e) {
+        console.error("Failed to listen to teacher", e);
+      }
+    };
+
+    if (profile && (profile as any).classCode) {
+      listenToTeacher((profile as any).classCode);
+    }
+    
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [profile]);
 
   const fetchRoadmap = async (userProfile: any) => {
     const cacheKey = `edu_roadmap_${userProfile.subject}`;
@@ -139,6 +178,11 @@ export default function Dashboard() {
                 subject: profile?.subject,
                 standard: profile?.standard || profile?.level
               }, { merge: true });
+              
+              setProfile(prev => prev ? { ...prev, classCode: code.trim().toUpperCase() } : null);
+              const p = await loadData("edu_profile");
+              if (p) await saveData("edu_profile", { ...p, classCode: code.trim().toUpperCase() });
+              
               toast.success("Successfully linked to class!");
             }
           }
@@ -293,15 +337,46 @@ export default function Dashboard() {
               <span className="bg-slate-700 px-3 py-1 rounded-full text-sm">{profile.standard || profile.level}</span>
             </div>
 
-            <button 
-              onClick={() => router.push("/chat")}
-              className="mt-8 bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-2xl font-medium transition-all shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:shadow-[0_0_30px_rgba(59,130,246,0.5)] flex items-center group w-full justify-center"
-            >
-              Resume Learning <Play className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform fill-current" />
-            </button>
+            {liveTeacherClassCode ? (
+              <button 
+                onClick={() => setIsJoiningLive(true)}
+                className="mt-8 bg-red-600 hover:bg-red-500 animate-pulse text-white px-8 py-4 rounded-2xl font-bold transition-all shadow-[0_0_20px_rgba(220,38,38,0.5)] hover:shadow-[0_0_30px_rgba(220,38,38,0.7)] flex items-center justify-center group w-full"
+              >
+                Join Live Video Class <Video className="ml-2 w-5 h-5 group-hover:scale-110 transition-transform" />
+              </button>
+            ) : (
+              <button 
+                onClick={() => router.push("/chat")}
+                className="mt-8 bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-2xl font-medium transition-all shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:shadow-[0_0_30px_rgba(59,130,246,0.5)] flex items-center group w-full justify-center"
+              >
+                Resume Learning <Play className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform fill-current" />
+              </button>
+            )}
           </div>
         </motion.div>
       </div>
+
+      {/* Jitsi Meet Overlay for Student */}
+      {isJoiningLive && liveTeacherClassCode && (
+        <div className="fixed inset-0 z-50 bg-slate-900 flex flex-col">
+          <div className="bg-slate-800 p-4 flex items-center justify-between shadow-xl">
+            <div className="flex items-center">
+              <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse mr-3" />
+              <h2 className="text-white font-bold text-lg">Live Session with Teacher</h2>
+            </div>
+            <button onClick={() => setIsJoiningLive(false)} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg font-medium flex items-center transition-colors">
+              <X className="w-5 h-5 mr-2" /> Leave Session
+            </button>
+          </div>
+          <div className="flex-1 w-full bg-black">
+            <iframe 
+              src={`https://meet.jit.si/${liveTeacherClassCode}-edubridge-live`}
+              allow="camera; microphone; fullscreen; display-capture; autoplay"
+              className="w-full h-full border-none"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
