@@ -101,13 +101,13 @@ export default function Onboarding() {
               className="w-full bg-slate-800/50 border border-slate-700 rounded-2xl px-6 py-4 text-center text-xl focus:ring-2 focus:ring-blue-500 outline-none mb-8"
               onKeyDown={e => {
                 if (e.key === 'Enter' && name) {
-                  if (role === "teacher") handleComplete();
+                  if (role === "teacher") setStep(4);
                   else setStep(3);
                 }
               }}
             />
-            <button onClick={() => role === "teacher" ? handleComplete() : setStep(3)} disabled={!name} className="bg-blue-600 disabled:bg-slate-700 text-white px-8 py-3.5 rounded-xl font-medium flex items-center justify-center mx-auto transition-all">
-              {role === "teacher" ? "Go to Dashboard" : "Next"} <ArrowRight className="ml-2 w-4 h-4" />
+            <button onClick={() => role === "teacher" ? setStep(4) : setStep(3)} disabled={!name} className="bg-blue-600 disabled:bg-slate-700 text-white px-8 py-3.5 rounded-xl font-medium flex items-center justify-center mx-auto transition-all">
+              Next <ArrowRight className="ml-2 w-4 h-4" />
             </button>
           </motion.div>
         )}
@@ -132,11 +132,13 @@ export default function Onboarding() {
           </motion.div>
         )}
 
-        {step === 4 && role === "student" && (
+        {step === 4 && (
           <motion.div key="step4" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }} className="w-full max-w-md">
             <div className="text-center mb-8">
               <BookOpen className="w-10 h-10 text-blue-400 mx-auto mb-4" />
-              <h2 className="text-3xl font-bold font-heading mb-2">What do you want to learn?</h2>
+              <h2 className="text-3xl font-bold font-heading mb-2">
+                {role === "teacher" ? "What subject do you teach?" : "What do you want to learn?"}
+              </h2>
             </div>
             <div className="grid grid-cols-2 gap-3 mb-4">
               {['Mathematics', 'Physics', 'Chemistry', 'Biology', 'Computer Science', 'English', 'History', 'Geography'].map(sub => (
@@ -157,11 +159,11 @@ export default function Onboarding() {
                 value={!['Mathematics', 'Physics', 'Chemistry', 'Biology', 'Computer Science', 'English', 'History', 'Geography'].includes(subject) ? subject : ""}
                 onChange={(e) => setSubject(e.target.value)}
                 className="w-full mt-2 bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none text-white transition-all"
-                onKeyDown={e => e.key === 'Enter' && subject && setStep(5)}
+                onKeyDown={e => e.key === 'Enter' && subject && (role === "teacher" ? handleComplete() : setStep(5))}
               />
             </div>
-            <button onClick={() => setStep(5)} disabled={!subject} className="w-full bg-blue-600 disabled:bg-slate-700 text-white py-3.5 rounded-xl font-medium flex items-center justify-center transition-all">
-              Continue <ArrowRight className="ml-2 w-4 h-4" />
+            <button onClick={() => role === "teacher" ? handleComplete() : setStep(5)} disabled={!subject} className={`w-full text-white py-3.5 rounded-xl font-medium flex items-center justify-center transition-all ${role === "teacher" ? 'bg-emerald-600 disabled:bg-slate-700' : 'bg-blue-600 disabled:bg-slate-700'}`}>
+              {role === "teacher" ? "Start Teaching" : "Continue"} {role === "teacher" ? <Sparkles className="ml-2 w-4 h-4" /> : <ArrowRight className="ml-2 w-4 h-4" />}
             </button>
           </motion.div>
         )}

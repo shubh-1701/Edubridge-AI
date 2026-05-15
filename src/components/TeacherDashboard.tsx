@@ -111,7 +111,9 @@ export default function TeacherDashboard() {
       <header className="px-8 py-6 border-b border-slate-800 bg-slate-900 flex items-center justify-between sticky top-0 z-10">
         <div>
           <h1 className="text-2xl font-bold font-heading text-white">Teacher Dashboard</h1>
-          <p className="text-slate-400">Welcome, {profile.name}!</p>
+          <p className="text-slate-400">
+            Welcome, {profile.name}! {profile.subject && <span className="text-blue-400 font-medium ml-2">({profile.subject})</span>}
+          </p>
         </div>
         <div className="flex items-center space-x-6">
           <button 
