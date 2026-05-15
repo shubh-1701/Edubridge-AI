@@ -19,6 +19,12 @@ export default function Onboarding() {
   useEffect(() => {
     if (!localStorage.getItem("edu_user_id")) {
       router.push("/login");
+    } else {
+      const pendingRole = localStorage.getItem("edu_pending_role");
+      if (pendingRole === "student" || pendingRole === "teacher") {
+        setRole(pendingRole);
+        setStep(2); // Skip role selection, go straight to Name
+      }
     }
   }, [router]);
 
