@@ -105,7 +105,7 @@ export async function POST(req: Request) {
 
     const chatCompletion = await groq.chat.completions.create({
       messages: apiMessages as any,
-      model: hasVision ? "llama-3.2-90b-vision-preview" : "llama-3.1-8b-instant",
+      model: hasVision ? "meta-llama/llama-4-scout-17b-16e-instruct" : "llama-3.1-8b-instant",
       temperature: action === "quiz" ? 0.2 : 0.7,
       max_tokens: action === "quiz" ? 500 : 1024,
     });
