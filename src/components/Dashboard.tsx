@@ -330,7 +330,47 @@ export default function Dashboard() {
           </div>
           <div className="relative z-10">
             <h2 className="text-lg text-slate-400 font-medium mb-1">Current Subject</h2>
-            <h3 className="text-4xl font-bold text-white mb-6">{profile.subject}</h3>
+            
+            <div className="relative inline-block mb-6">
+              <select 
+                value={profile.subject || ""} 
+                onChange={async (e) => {
+                  const newSubject = e.target.value;
+                  if (!newSubject) return;
+                  
+                  // Update local state
+                  setProfile(prev => prev ? { ...prev, subject: newSubject } : null);
+                  
+                  // Update localStorage
+                  const p = await loadData("edu_profile");
+                  if (p) await saveData("edu_profile", { ...p, subject: newSubject });
+                  
+                  // Update Firestore
+                  try {
+                    const { db } = await import("@/lib/firebase");
+                    if (db) {
+                      const { doc, setDoc } = await import("firebase/firestore");
+                      const userId = localStorage.getItem("edu_user_id");
+                      if (userId) {
+                        await setDoc(doc(db, "users", userId), { subject: newSubject }, { merge: true });
+                      }
+                    }
+                  } catch(err) { console.error(err) }
+                  
+                  // Refetch Roadmap
+                  fetchRoadmap({ ...profile, subject: newSubject });
+                }}
+                className="bg-transparent text-4xl font-bold text-white focus:outline-none appearance-none cursor-pointer border-b-2 border-transparent hover:border-slate-600 transition-colors pb-1 pr-8"
+              >
+                <option value="" disabled className="text-lg bg-slate-800">Select a Subject</option>
+                {['Mathematics', 'Physics', 'Chemistry', 'Biology', 'Computer Science', 'English', 'History', 'Geography'].map(sub => (
+                  <option key={sub} value={sub} className="text-lg bg-slate-800">{sub}</option>
+                ))}
+              </select>
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 pb-1">
+                ▼
+              </div>
+            </div>
             
             <div className="flex items-center space-x-4">
               <span className="bg-slate-700 px-3 py-1 rounded-full text-sm">{profile.language || 'English'}</span>
@@ -346,10 +386,10 @@ export default function Dashboard() {
               </button>
             ) : (
               <button 
-                onClick={() => router.push("/chat")}
-                className="mt-8 bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-2xl font-medium transition-all shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:shadow-[0_0_30px_rgba(59,130,246,0.5)] flex items-center group w-full justify-center"
+                onClick={() => profile.subject ? router.push("/chat") : toast.error("Please select a subject first.")}
+                className={`mt-8 px-8 py-4 rounded-2xl font-medium transition-all flex items-center group w-full justify-center ${profile.subject ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:shadow-[0_0_30px_rgba(59,130,246,0.5)]' : 'bg-slate-700 text-slate-400 cursor-not-allowed'}`}
               >
-                Resume Learning <Play className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform fill-current" />
+                {profile.subject ? "Resume Learning" : "Select Subject"} <Play className={`ml-2 w-5 h-5 ${profile.subject ? 'group-hover:translate-x-1' : ''} transition-transform fill-current`} />
               </button>
             )}
           </div>

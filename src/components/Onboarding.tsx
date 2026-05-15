@@ -126,18 +126,18 @@ export default function Onboarding() {
                 </button>
               ))}
             </div>
-            <button onClick={() => setStep(4)} disabled={!standard} className="w-full bg-blue-600 disabled:bg-slate-700 text-white py-3.5 rounded-xl font-medium flex items-center justify-center transition-all">
+            <button onClick={() => setStep(5)} disabled={!standard} className="w-full bg-blue-600 disabled:bg-slate-700 text-white py-3.5 rounded-xl font-medium flex items-center justify-center transition-all">
               Continue <ArrowRight className="ml-2 w-4 h-4" />
             </button>
           </motion.div>
         )}
 
-        {step === 4 && (
+        {step === 4 && role === "teacher" && (
           <motion.div key="step4" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }} className="w-full max-w-md">
             <div className="text-center mb-8">
               <BookOpen className="w-10 h-10 text-blue-400 mx-auto mb-4" />
               <h2 className="text-3xl font-bold font-heading mb-2">
-                {role === "teacher" ? "What subject do you teach?" : "What do you want to learn?"}
+                What subject do you teach?
               </h2>
             </div>
             <div className="grid grid-cols-2 gap-3 mb-4">
@@ -159,11 +159,11 @@ export default function Onboarding() {
                 value={!['Mathematics', 'Physics', 'Chemistry', 'Biology', 'Computer Science', 'English', 'History', 'Geography'].includes(subject) ? subject : ""}
                 onChange={(e) => setSubject(e.target.value)}
                 className="w-full mt-2 bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none text-white transition-all"
-                onKeyDown={e => e.key === 'Enter' && subject && (role === "teacher" ? handleComplete() : setStep(5))}
+                onKeyDown={e => e.key === 'Enter' && subject && handleComplete()}
               />
             </div>
-            <button onClick={() => role === "teacher" ? handleComplete() : setStep(5)} disabled={!subject} className={`w-full text-white py-3.5 rounded-xl font-medium flex items-center justify-center transition-all ${role === "teacher" ? 'bg-emerald-600 disabled:bg-slate-700' : 'bg-blue-600 disabled:bg-slate-700'}`}>
-              {role === "teacher" ? "Start Teaching" : "Continue"} {role === "teacher" ? <Sparkles className="ml-2 w-4 h-4" /> : <ArrowRight className="ml-2 w-4 h-4" />}
+            <button onClick={() => handleComplete()} disabled={!subject} className={`w-full text-white py-3.5 rounded-xl font-medium flex items-center justify-center transition-all bg-emerald-600 disabled:bg-slate-700`}>
+              Start Teaching <Sparkles className="ml-2 w-4 h-4" />
             </button>
           </motion.div>
         )}
