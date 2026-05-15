@@ -25,7 +25,23 @@ export default function Login() {
     try {
       if (auth) {
         if (isLogin) {
-          await signInWithEmailAndPassword(auth, email, password);
+          const userCredential = await signInWithEmailAndPassword(auth, email, password);
+          
+          // Verify role from Firestore
+          const { db } = await import("@/lib/firebase");
+          if (db) {
+            const { doc, getDoc } = await import("firebase/firestore");
+            const userDoc = await getDoc(doc(db, "users", userCredential.user.uid));
+            if (userDoc.exists()) {
+              const dbRole = userDoc.data().role;
+              if (dbRole && dbRole !== role) {
+                await auth.signOut();
+                throw new Error(`This email is registered as a ${dbRole}. Please select the correct portal.`);
+              }
+              // Restore profile to localStorage for seamless cross-device login
+              localStorage.setItem("edu_profile", JSON.stringify(userDoc.data()));
+            }
+          }
         } else {
           await createUserWithEmailAndPassword(auth, email, password);
         }
@@ -43,7 +59,12 @@ export default function Login() {
       
       const hasProfile = !!localStorage.getItem("edu_profile");
       if (hasProfile) {
-        router.push("/dashboard");
+        const p = JSON.parse(localStorage.getItem("edu_profile") || "{}");
+        if (p.role === "teacher") {
+          router.push("/teacher");
+        } else {
+          router.push("/dashboard");
+        }
       } else {
         router.push("/onboarding");
       }
