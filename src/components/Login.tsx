@@ -36,8 +36,6 @@ export default function Login() {
         localStorage.setItem("edu_user_id", email);
       }
 
-      }
-
       localStorage.setItem("edu_auth_token", "mock_token_" + Date.now());
       if (role) localStorage.setItem("edu_pending_role", role);
       
