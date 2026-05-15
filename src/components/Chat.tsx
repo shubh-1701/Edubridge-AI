@@ -41,7 +41,7 @@ export default function Chat() {
       if (p) {
         setProfile(p);
         
-        const savedChats = await loadData("edu_chats");
+        const savedChats = await loadData(`edu_chats_${p.subject}`);
         if (savedChats && Array.isArray(savedChats) && savedChats.length > 0) {
           setMessages(savedChats);
         } else {
@@ -126,11 +126,11 @@ export default function Chat() {
   };
 
   useEffect(() => {
-    if (messages.length > 0) {
-      saveData("edu_chats", messages);
+    if (messages.length > 0 && profile?.subject) {
+      saveData(`edu_chats_${profile.subject}`, messages);
     }
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, profile?.subject]);
 
   const toggleListening = () => {
     if (isListening) {
@@ -210,10 +210,10 @@ export default function Chat() {
       const data = await res.json();
       setMessages(prev => [...prev, { role: "assistant", content: data.reply }]);
       
-      if (!customAction) {
-        const xpStr = await loadData("edu_xp");
+      if (!customAction && profile?.subject) {
+        const xpStr = await loadData(`edu_xp_${profile.subject}`);
         const currentXP = parseInt(xpStr || "0");
-        await saveData("edu_xp", (currentXP + 10).toString());
+        await saveData(`edu_xp_${profile.subject}`, (currentXP + 10).toString());
       }
     } catch (error) {
       console.error(error);

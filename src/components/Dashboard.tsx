@@ -20,6 +20,7 @@ export default function Dashboard() {
   const [showSettings, setShowSettings] = useState(false);
   const [roadmap, setRoadmap] = useState<RoadmapStep[]>([]);
   const [isLoadingRoadmap, setIsLoadingRoadmap] = useState(false);
+  const [customSubjects, setCustomSubjects] = useState<string[]>([]);
   const [liveTeacherClassCode, setLiveTeacherClassCode] = useState<string | null>(null);
   const [isJoiningLive, setIsJoiningLive] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
@@ -35,13 +36,20 @@ export default function Dashboard() {
       const p = await loadData("edu_profile");
       if (p) {
         setProfile(p);
-        fetchRoadmap(p);
+        if (p.subject) fetchRoadmap(p);
       } else {
         router.push("/onboarding");
       }
       
-      const storedXp = await loadData("edu_xp");
-      setXp(parseInt(storedXp || "0"));
+      const storedCustoms = await loadData("edu_custom_subjects");
+      if (storedCustoms) setCustomSubjects(JSON.parse(storedCustoms));
+
+      if (p && p.subject) {
+        const storedXp = await loadData(`edu_xp_${p.subject}`);
+        setXp(parseInt(storedXp || "0"));
+      } else {
+        setXp(0);
+      }
     };
     initData();
 
@@ -136,9 +144,14 @@ export default function Dashboard() {
 
   const handleAction = async (action: "clear_chat" | "edit_profile" | "logout" | "send_feedback" | "link_class") => {
     if (action === "clear_chat") {
-      if (confirm("Are you sure you want to clear your chat history?")) {
-        await removeData("edu_chats");
-        toast.success("Chat history cleared!");
+      if (confirm("Are you sure you want to clear your chat history for all subjects?")) {
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith("edu_chats_")) keysToRemove.push(key);
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
+        toast.success("Chat history cleared for all subjects!");
       }
     } else if (action === "send_feedback") {
       const feedback = window.prompt("We'd love to hear your thoughts! What can we improve?");
@@ -199,8 +212,16 @@ export default function Dashboard() {
       if (confirm("Are you sure you want to log out completely?")) {
         await removeData("edu_profile");
         localStorage.removeItem("edu_auth_token");
-        await removeData("edu_chats");
-        await removeData("edu_xp");
+        
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.startsWith("edu_chats_") || key.startsWith("edu_xp_") || key.startsWith("edu_roadmap_") || key === "edu_custom_subjects")) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
+        
         router.push("/login");
       }
     }
@@ -335,11 +356,24 @@ export default function Dashboard() {
               <select 
                 value={profile.subject || ""} 
                 onChange={async (e) => {
-                  const newSubject = e.target.value;
+                  let newSubject = e.target.value;
                   if (!newSubject) return;
+
+                  if (newSubject === "__custom__") {
+                    const custom = window.prompt("Enter your custom subject (e.g. Astrophysics):");
+                    if (!custom || !custom.trim()) return;
+                    newSubject = custom.trim();
+                    const updatedCustoms = [...customSubjects, newSubject];
+                    setCustomSubjects(updatedCustoms);
+                    await saveData("edu_custom_subjects", JSON.stringify(updatedCustoms));
+                  }
                   
                   // Update local state
                   setProfile(prev => prev ? { ...prev, subject: newSubject } : null);
+                  
+                  // Update XP
+                  const storedXp = await loadData(`edu_xp_${newSubject}`);
+                  setXp(parseInt(storedXp || "0"));
                   
                   // Update localStorage
                   const p = await loadData("edu_profile");
@@ -360,12 +394,13 @@ export default function Dashboard() {
                   // Refetch Roadmap
                   fetchRoadmap({ ...profile, subject: newSubject });
                 }}
-                className="bg-transparent text-4xl font-bold text-white focus:outline-none appearance-none cursor-pointer border-b-2 border-transparent hover:border-slate-600 transition-colors pb-1 pr-8"
+                className="bg-transparent text-4xl font-bold text-white focus:outline-none appearance-none cursor-pointer border-b-2 border-transparent hover:border-slate-600 transition-colors pb-1 pr-8 max-w-[280px] sm:max-w-md truncate"
               >
                 <option value="" disabled className="text-lg bg-slate-800">Select a Subject</option>
-                {['Mathematics', 'Physics', 'Chemistry', 'Biology', 'Computer Science', 'English', 'History', 'Geography'].map(sub => (
+                {['Mathematics', 'Physics', 'Chemistry', 'Biology', 'Computer Science', 'English', 'History', 'Geography', ...customSubjects].map(sub => (
                   <option key={sub} value={sub} className="text-lg bg-slate-800">{sub}</option>
                 ))}
+                <option value="__custom__" className="text-lg bg-slate-800 text-blue-400 font-bold">+ Add Custom Subject</option>
               </select>
               <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500 pb-1">
                 ▼
