@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { BookOpen, Flame, Trophy, Play, Settings, Star, LogOut, Trash2, Edit3, Map, CheckCircle2, Loader2, MessageSquare, Link } from "lucide-react";
+import { BookOpen, Play, Settings, Star, LogOut, Trash2, Edit3, Map, CheckCircle2, Loader2, MessageSquare, Link } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { loadData, removeData } from "@/lib/db";
 import { useRouter } from "next/navigation";

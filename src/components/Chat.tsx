@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, Sparkles, Loader2, LogOut, Download, Briefcase, ArrowLeft, Volume2, Mic, MicOff, HelpCircle, Play, Camera, X, PhoneCall, PhoneOff } from "lucide-react";
+import { Send, Bot, User, Sparkles, Loader2, Download, Briefcase, ArrowLeft, Volume2, Mic, MicOff, HelpCircle, Play, Camera, X, PhoneCall, PhoneOff } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import Flashcard from "./Flashcard";
