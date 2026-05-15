@@ -58,10 +58,26 @@ export async function POST(req: Request) {
 
     const systemPrompt = buildSystemPrompt(profile, action);
     
+    const formattedMessages = messages.map((msg: any) => {
+      if (msg.role === "user" && msg.imageUrl) {
+        return {
+          role: "user",
+          content: [
+            { type: "text", text: msg.content || "Analyze this image." },
+            { type: "image_url", image_url: { url: msg.imageUrl } }
+          ]
+        };
+      }
+      return { role: msg.role, content: msg.content };
+    });
+
     // For quiz action, we don't pass the whole history to save tokens, just the last few messages for context.
     const apiMessages = action === "quiz" 
-      ? [{ role: "system", content: systemPrompt }, ...messages.slice(-4)] 
-      : [{ role: "system", content: systemPrompt }, ...messages];
+      ? [{ role: "system", content: systemPrompt }, ...formattedMessages.slice(-4)] 
+      : [{ role: "system", content: systemPrompt }, ...formattedMessages];
+    
+    // Determine if we need the vision model
+    const hasVision = messages.some((msg: any) => msg.imageUrl);
 
     if (!process.env.GROQ_API_KEY || process.env.GROQ_API_KEY === 'dummy_key') {
       await new Promise(resolve => setTimeout(resolve, 1500)); 
@@ -89,7 +105,7 @@ export async function POST(req: Request) {
 
     const chatCompletion = await groq.chat.completions.create({
       messages: apiMessages as any,
-      model: "llama-3.1-8b-instant",
+      model: hasVision ? "llama-3.2-11b-vision-preview" : "llama-3.1-8b-instant",
       temperature: action === "quiz" ? 0.2 : 0.7,
       max_tokens: action === "quiz" ? 500 : 1024,
     });

@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { BookOpen, Flame, Trophy, Play, Settings, Star, LogOut, Trash2, Edit3, Map, CheckCircle2, Loader2, MessageSquare } from "lucide-react";
+import { BookOpen, Flame, Trophy, Play, Settings, Star, LogOut, Trash2, Edit3, Map, CheckCircle2, Loader2, MessageSquare, Link } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { loadData, removeData } from "@/lib/db";
 import { useRouter } from "next/navigation";
@@ -95,7 +95,7 @@ export default function Dashboard() {
   
   const progressPercent = Math.min(100, Math.round((xp / nextGoal) * 100));
 
-  const handleAction = async (action: "clear_chat" | "edit_profile" | "logout" | "send_feedback") => {
+  const handleAction = async (action: "clear_chat" | "edit_profile" | "logout" | "send_feedback" | "link_class") => {
     if (action === "clear_chat") {
       if (confirm("Are you sure you want to clear your chat history?")) {
         await removeData("edu_chats");
@@ -121,6 +121,29 @@ export default function Dashboard() {
         } catch (e) {
           console.error("Feedback error:", e);
           toast.error("Failed to send feedback.");
+        }
+      }
+    } else if (action === "link_class") {
+      const code = window.prompt("Enter your teacher's 6-character Class Code:");
+      if (code && code.trim()) {
+        try {
+          const { db } = await import("@/lib/firebase");
+          if (db) {
+            const { doc, setDoc } = await import("firebase/firestore");
+            const userId = localStorage.getItem("edu_user_id");
+            if (userId) {
+              await setDoc(doc(db, "users", userId), { 
+                classCode: code.trim().toUpperCase(),
+                xp: xp,
+                name: profile?.name,
+                subject: profile?.subject,
+                standard: profile?.standard || profile?.level
+              }, { merge: true });
+              toast.success("Successfully linked to class!");
+            }
+          }
+        } catch(e) {
+          toast.error("Failed to link class.");
         }
       }
     } else if (action === "edit_profile") {
@@ -167,6 +190,9 @@ export default function Dashboard() {
                 <div className="flex flex-col">
                   <button onClick={() => handleAction("edit_profile")} className="flex items-center px-4 py-3 hover:bg-slate-700/50 text-slate-300 hover:text-white transition-colors text-left text-sm border-b border-slate-700/50">
                     <Edit3 className="w-4 h-4 mr-3 text-blue-400" /> Edit Profile
+                  </button>
+                  <button onClick={() => handleAction("link_class")} className="flex items-center px-4 py-3 hover:bg-slate-700/50 text-slate-300 hover:text-white transition-colors text-left text-sm border-b border-slate-700/50">
+                    <Link className="w-4 h-4 mr-3 text-indigo-400" /> Join Class
                   </button>
                   <button onClick={() => handleAction("clear_chat")} className="flex items-center px-4 py-3 hover:bg-slate-700/50 text-slate-300 hover:text-white transition-colors text-left text-sm border-b border-slate-700/50">
                     <Trash2 className="w-4 h-4 mr-3 text-orange-400" /> Clear Chat History

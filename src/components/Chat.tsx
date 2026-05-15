@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, Sparkles, Loader2, LogOut, Download, Briefcase, ArrowLeft, Volume2, Mic, MicOff, HelpCircle, Play } from "lucide-react";
+import { Send, Bot, User, Sparkles, Loader2, LogOut, Download, Briefcase, ArrowLeft, Volume2, Mic, MicOff, HelpCircle, Play, Camera, X, PhoneCall, PhoneOff } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import Flashcard from "./Flashcard";
 import { saveData, loadData } from "@/lib/db";
@@ -11,14 +12,18 @@ import toast from "react-hot-toast";
 interface Message {
   role: "system" | "user" | "assistant";
   content: string;
+  imageUrl?: string;
 }
 
 export default function Chat() {
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [isCallMode, setIsCallMode] = useState(false);
+  const isCallModeRef = useRef(false);
   const [profile, setProfile] = useState<{name: string, subject: string, level?: string, standard?: string, language?: string} | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -63,7 +68,12 @@ export default function Chat() {
       
       recognitionRef.current.onresult = (event: any) => {
         const transcript = event.results[0][0].transcript;
-        setInput(prev => prev + (prev ? " " : "") + transcript);
+        if (isCallModeRef.current) {
+          // If in call mode, handle it globally
+          window.dispatchEvent(new CustomEvent('voice_call_transcript', { detail: transcript }));
+        } else {
+          setInput(prev => prev + (prev ? " " : "") + transcript);
+        }
         setIsListening(false);
       };
       
@@ -77,6 +87,43 @@ export default function Chat() {
       };
     }
   }, []);
+
+  useEffect(() => {
+    isCallModeRef.current = isCallMode;
+    
+    const handleVoiceCallTranscript = (e: any) => {
+      const transcript = e.detail;
+      if (transcript && transcript.trim()) {
+        handleVoiceCallSubmit(transcript);
+      }
+    };
+
+    window.addEventListener('voice_call_transcript', handleVoiceCallTranscript);
+    return () => window.removeEventListener('voice_call_transcript', handleVoiceCallTranscript);
+  }, [isCallMode, messages, profile]); // Depend on messages to send full history
+
+  const handleVoiceCallSubmit = async (transcript: string) => {
+    const userMessage: Message = { role: "user" as const, content: transcript };
+    setMessages(prev => [...prev, userMessage]);
+    setIsLoading(true);
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: [...messages, userMessage], profile })
+      });
+      const data = await res.json();
+      if (data.reply) {
+        setMessages(prev => [...prev, { role: "assistant", content: data.reply }]);
+        speakText(data.reply);
+      }
+    } catch(e) {
+      console.error(e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -115,9 +162,19 @@ export default function Chat() {
     }
   };
 
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleSubmit = async (e?: React.FormEvent, customAction?: "career" | "quiz") => {
     if (e) e.preventDefault();
-    if ((!input.trim() && !customAction) || isLoading) return;
+    if ((!input.trim() && !imagePreview && !customAction) || isLoading) return;
 
     let userMessageContent = input;
     if (customAction === "career") {
@@ -126,9 +183,12 @@ export default function Chat() {
       userMessageContent = "Quiz me on what we just learned!";
     }
 
-    const userMessage = { role: "user" as const, content: userMessageContent };
+    const userMessage: Message = { role: "user" as const, content: userMessageContent, imageUrl: imagePreview || undefined };
     setMessages(prev => [...prev, userMessage]);
-    if (!customAction) setInput("");
+    if (!customAction) {
+      setInput("");
+      setImagePreview(null);
+    }
     setIsLoading(true);
 
     try {
@@ -236,6 +296,9 @@ export default function Chat() {
           </div>
         </div>
         <div className="flex items-center space-x-2">
+          <button onClick={() => setIsCallMode(true)} className="text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 px-3 py-1.5 rounded-lg flex items-center text-sm font-medium transition-colors" title="Voice Call Mode">
+            <PhoneCall className="w-4 h-4 md:mr-1.5" /> <span className="hidden md:inline">Call Tutor</span>
+          </button>
           <button onClick={() => handleSubmit(undefined, "quiz")} className="text-purple-400 hover:text-purple-300 bg-purple-500/10 hover:bg-purple-500/20 px-3 py-1.5 rounded-lg flex items-center text-sm font-medium transition-colors" title="Quiz Me">
             <HelpCircle className="w-4 h-4 md:mr-1.5" /> <span className="hidden md:inline">Quiz Me</span>
           </button>
@@ -256,6 +319,10 @@ export default function Chat() {
                 {msg.role === "user" ? <User className="w-5 h-5 text-white" /> : <Bot className="w-5 h-5 text-blue-400" />}
               </div>
               <div className={`rounded-2xl px-5 py-4 relative group ${msg.role === "user" ? "bg-blue-600 text-white rounded-tr-sm" : "bg-slate-800 border border-slate-700 text-slate-200 rounded-tl-sm shadow-sm"}`}>
+                
+                {msg.imageUrl && (
+                  <img src={msg.imageUrl} alt="Uploaded" className="max-w-full h-auto rounded-xl mb-3 max-h-64 object-contain" />
+                )}
                 
                 {renderMessageContent(msg.content, msg.role === "assistant")}
 
@@ -288,8 +355,20 @@ export default function Chat() {
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-4 bg-slate-900 border-t border-slate-800">
+      <div className="p-4 bg-slate-900 border-t border-slate-800 flex flex-col">
+        {imagePreview && (
+          <div className="mb-3 relative w-32 h-32 rounded-xl overflow-hidden border-2 border-blue-500 shadow-lg group">
+            <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+            <button onClick={() => setImagePreview(null)} className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 shadow-md transition-colors" type="button">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
         <form onSubmit={e => handleSubmit(e)} className="flex items-end space-x-2 bg-slate-800 p-2 rounded-2xl border border-slate-700 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition-all">
+          <input type="file" id="image-upload" accept="image/*" className="hidden" onChange={handleImageUpload} />
+          <label htmlFor="image-upload" className="p-3 rounded-xl transition-all cursor-pointer flex-shrink-0 mb-1 ml-1 bg-slate-700 text-slate-400 hover:text-white" title="Upload Image">
+             <Camera className="w-5 h-5" />
+          </label>
           <button
             type="button"
             onClick={toggleListening}
@@ -313,13 +392,60 @@ export default function Chat() {
           />
           <button 
             type="submit" 
-            disabled={!input.trim() || isLoading}
+            disabled={(!input.trim() && !imagePreview) || isLoading}
             className="bg-blue-600 disabled:bg-slate-700 disabled:text-slate-500 text-white p-3 rounded-xl transition-all hover:bg-blue-500 flex-shrink-0 mb-1 mr-1"
           >
             <Send className="w-5 h-5" />
           </button>
         </form>
       </div>
+
+      {/* Full Screen Call UI */}
+      <AnimatePresence>
+        {isCallMode && (
+          <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="absolute inset-0 z-50 bg-slate-900/95 backdrop-blur-xl flex flex-col items-center justify-center p-6">
+            <div className="absolute top-8 text-center">
+              <h2 className="text-2xl font-bold text-white mb-2">Live Call with EduBridge AI</h2>
+              <p className="text-slate-400">Tap the microphone to speak.</p>
+            </div>
+
+            <div className="flex-1 flex flex-col items-center justify-center w-full max-w-md">
+              <div className="relative mb-12">
+                {isLoading ? (
+                  <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 2, ease: "linear" }} className="w-32 h-32 rounded-full border-4 border-dashed border-emerald-500 flex items-center justify-center">
+                    <Bot className="w-16 h-16 text-emerald-400" />
+                  </motion.div>
+                ) : isListening ? (
+                  <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1.5 }} className="w-32 h-32 rounded-full bg-emerald-500/20 flex items-center justify-center border-4 border-emerald-500">
+                    <Mic className="w-16 h-16 text-emerald-400" />
+                  </motion.div>
+                ) : (
+                  <div className="w-32 h-32 rounded-full bg-slate-800 flex items-center justify-center border-4 border-slate-700">
+                    <Bot className="w-16 h-16 text-slate-500" />
+                  </div>
+                )}
+              </div>
+              
+              <div className="text-center min-h-[60px] text-lg text-slate-300 px-4">
+                {isLoading ? "Thinking..." : isListening ? "Listening..." : "Tap below to talk"}
+              </div>
+            </div>
+
+            <div className="absolute bottom-12 flex items-center justify-center w-full space-x-8">
+              <button onClick={() => setIsCallMode(false)} className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-500 flex items-center justify-center text-white shadow-xl transition-all hover:scale-105">
+                <PhoneOff className="w-8 h-8" />
+              </button>
+              <button 
+                onClick={toggleListening} 
+                disabled={isLoading}
+                className={`w-20 h-20 rounded-full flex items-center justify-center text-white shadow-2xl transition-all ${isListening ? 'bg-emerald-600 animate-pulse' : 'bg-blue-600 hover:bg-blue-500 hover:scale-105'}`}
+              >
+                {isListening ? <Mic className="w-10 h-10" /> : <Mic className="w-10 h-10" />}
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

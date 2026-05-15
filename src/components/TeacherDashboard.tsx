@@ -1,0 +1,161 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import { LogOut, Users, BookOpen, Star, RefreshCw, Copy, Check } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { loadData, removeData, saveData } from "@/lib/db";
+import toast from "react-hot-toast";
+
+export default function TeacherDashboard() {
+  const router = useRouter();
+  const [profile, setProfile] = useState<any>(null);
+  const [classCode, setClassCode] = useState<string>("");
+  const [students, setStudents] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const init = async () => {
+      const p = await loadData("edu_profile");
+      if (!p || p.role !== "teacher") {
+        router.push("/dashboard"); // Redirect to student dashboard if not teacher
+        return;
+      }
+      setProfile(p);
+      
+      let code = await loadData("edu_class_code");
+      if (!code) {
+        code = Math.random().toString(36).substring(2, 8).toUpperCase();
+        await saveData("edu_class_code", code);
+      }
+      setClassCode(code);
+      fetchStudents(code);
+    };
+    init();
+  }, [router]);
+
+  const fetchStudents = async (code: string) => {
+    setIsLoading(true);
+    try {
+      const { db } = await import("@/lib/firebase");
+      if (db) {
+        const { collection, query, where, getDocs } = await import("firebase/firestore");
+        const q = query(collection(db, "users"), where("classCode", "==", code));
+        const querySnapshot = await getDocs(q);
+        const st: any[] = [];
+        querySnapshot.forEach((doc) => {
+          st.push({ id: doc.id, ...doc.data() });
+        });
+        setStudents(st);
+      }
+    } catch (e) {
+      console.error("Failed to fetch students", e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const copyCode = () => {
+    navigator.clipboard.writeText(classCode);
+    setCopied(true);
+    toast.success("Class code copied!");
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleLogout = async () => {
+    if (confirm("Are you sure you want to log out?")) {
+      await removeData("edu_profile");
+      localStorage.removeItem("edu_auth_token");
+      router.push("/login");
+    }
+  };
+
+  if (!profile) return null;
+
+  return (
+    <div className="flex flex-col h-full bg-slate-900 overflow-y-auto">
+      <header className="px-8 py-6 border-b border-slate-800 bg-slate-900 flex items-center justify-between sticky top-0 z-10">
+        <div>
+          <h1 className="text-2xl font-bold font-heading text-white">Teacher Dashboard</h1>
+          <p className="text-slate-400">Welcome, {profile.name}!</p>
+        </div>
+        <button onClick={handleLogout} className="flex items-center text-slate-400 hover:text-red-400 transition-colors">
+          <LogOut className="w-5 h-5 mr-2" />
+          <span className="text-sm font-medium">Log Out</span>
+        </button>
+      </header>
+
+      <div className="p-8 space-y-8 max-w-5xl mx-auto w-full">
+        {/* Class Code Card */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-slate-800 border border-slate-700 p-8 rounded-3xl flex flex-col md:flex-row items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-white mb-2">Your Class Code</h2>
+            <p className="text-slate-400 text-sm max-w-md">Share this code with your students. When they enter it in their dashboard settings, they will appear in your roster below.</p>
+          </div>
+          <div className="mt-6 md:mt-0 flex items-center space-x-4">
+            <div className="bg-slate-900 px-6 py-4 rounded-xl border border-slate-700 text-3xl font-mono font-bold tracking-widest text-emerald-400 shadow-inner">
+              {classCode}
+            </div>
+            <button onClick={copyCode} className="p-4 bg-blue-600 hover:bg-blue-500 transition-colors text-white rounded-xl shadow-lg">
+              {copied ? <Check className="w-6 h-6" /> : <Copy className="w-6 h-6" />}
+            </button>
+          </div>
+        </motion.div>
+
+        {/* Student Roster */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-bold text-white flex items-center">
+              <Users className="w-6 h-6 mr-3 text-blue-400" /> 
+              Student Roster ({students.length})
+            </h3>
+            <button onClick={() => fetchStudents(classCode)} className="text-slate-400 hover:text-white flex items-center text-sm transition-colors">
+              <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} /> Refresh
+            </button>
+          </div>
+
+          {isLoading ? (
+            <div className="bg-slate-800/50 border border-slate-700/50 p-12 rounded-3xl flex flex-col items-center justify-center text-slate-400">
+              <RefreshCw className="w-8 h-8 animate-spin mb-4 text-blue-400" />
+              <p>Loading students...</p>
+            </div>
+          ) : students.length === 0 ? (
+            <div className="bg-slate-800/50 border border-slate-700/50 p-12 rounded-3xl flex flex-col items-center justify-center text-center">
+              <Users className="w-16 h-16 text-slate-600 mb-4" />
+              <h4 className="text-lg font-bold text-white mb-2">No students yet</h4>
+              <p className="text-slate-400 max-w-sm">When your students enter your class code on their dashboard, their progress will appear here.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {students.map((student, i) => (
+                <div key={i} className="bg-slate-800 border border-slate-700 p-6 rounded-2xl shadow-lg relative overflow-hidden">
+                  <div className="absolute -top-6 -right-6 w-24 h-24 bg-blue-500/10 rounded-full blur-xl pointer-events-none" />
+                  
+                  <div className="flex items-center space-x-4 mb-4">
+                    <div className="w-12 h-12 bg-slate-700 rounded-full flex items-center justify-center font-bold text-xl text-white">
+                      {student.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-white text-lg">{student.name}</h4>
+                      <p className="text-sm text-slate-400">{student.standard}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div className="flex items-center text-sm text-slate-300">
+                      <BookOpen className="w-4 h-4 mr-2 text-purple-400" /> {student.subject}
+                    </div>
+                    <div className="flex items-center text-sm text-slate-300">
+                      <Star className="w-4 h-4 mr-2 text-yellow-400" /> {student.xp || 0} XP
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </motion.div>
+      </div>
+    </div>
+  );
+}
