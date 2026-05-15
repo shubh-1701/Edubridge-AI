@@ -6,7 +6,7 @@ import { LogIn, Sparkles, UserPlus, User, GraduationCap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { auth } from "@/lib/firebase";
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 
 export default function Login() {
   const router = useRouter();
@@ -75,6 +75,24 @@ export default function Login() {
     }
   };
 
+  const handleResetPassword = async () => {
+    if (!email) {
+      toast.error("Please enter your email address first.");
+      return;
+    }
+    setIsLoading(true);
+    try {
+      if (auth) {
+        await sendPasswordResetEmail(auth, email);
+        toast.success("Password reset email sent! Check your inbox.");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to send reset email.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="flex flex-col items-center justify-center h-full p-6">
       <motion.div 
@@ -125,7 +143,14 @@ export default function Login() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1.5">Password</label>
+                <div className="flex justify-between items-center mb-1.5">
+                  <label className="block text-sm font-medium text-slate-300">Password</label>
+                  {isLogin && (
+                    <button type="button" onClick={handleResetPassword} disabled={isLoading} className="text-xs text-blue-400 hover:text-blue-300 transition-colors">
+                      Forgot Password?
+                    </button>
+                  )}
+                </div>
                 <input 
                   type="password" 
                   value={password}
