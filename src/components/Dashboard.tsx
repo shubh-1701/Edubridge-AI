@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { BookOpen, Flame, Trophy, Play, Settings, Star, LogOut, Trash2, Edit3, Map, CheckCircle2, Loader2 } from "lucide-react";
+import { BookOpen, Flame, Trophy, Play, Settings, Star, LogOut, Trash2, Edit3, Map, CheckCircle2, Loader2, MessageSquare } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { loadData, removeData } from "@/lib/db";
 import { useRouter } from "next/navigation";
@@ -95,11 +95,33 @@ export default function Dashboard() {
   
   const progressPercent = Math.min(100, Math.round((xp / nextGoal) * 100));
 
-  const handleAction = async (action: "clear_chat" | "edit_profile" | "logout") => {
+  const handleAction = async (action: "clear_chat" | "edit_profile" | "logout" | "send_feedback") => {
     if (action === "clear_chat") {
       if (confirm("Are you sure you want to clear your chat history?")) {
         await removeData("edu_chats");
         toast.success("Chat history cleared!");
+      }
+    } else if (action === "send_feedback") {
+      const feedback = window.prompt("We'd love to hear your thoughts! What can we improve?");
+      if (feedback && feedback.trim()) {
+        try {
+          const { db } = await import("@/lib/firebase");
+          if (db) {
+            const { collection, addDoc } = await import("firebase/firestore");
+            await addDoc(collection(db, "feedback"), {
+              userId: localStorage.getItem("edu_user_id") || "anonymous",
+              name: profile?.name || "Unknown",
+              feedback: feedback.trim(),
+              timestamp: new Date().toISOString()
+            });
+            toast.success("Thank you for your feedback! 🚀");
+          } else {
+            toast.success("Thank you for your feedback! (Saved locally)");
+          }
+        } catch (e) {
+          console.error("Feedback error:", e);
+          toast.error("Failed to send feedback.");
+        }
       }
     } else if (action === "edit_profile") {
       if (confirm("This will reset your learning profile but keep your XP. Continue?")) {
@@ -148,6 +170,9 @@ export default function Dashboard() {
                   </button>
                   <button onClick={() => handleAction("clear_chat")} className="flex items-center px-4 py-3 hover:bg-slate-700/50 text-slate-300 hover:text-white transition-colors text-left text-sm border-b border-slate-700/50">
                     <Trash2 className="w-4 h-4 mr-3 text-orange-400" /> Clear Chat History
+                  </button>
+                  <button onClick={() => handleAction("send_feedback")} className="flex items-center px-4 py-3 hover:bg-slate-700/50 text-slate-300 hover:text-white transition-colors text-left text-sm border-b border-slate-700/50">
+                    <MessageSquare className="w-4 h-4 mr-3 text-emerald-400" /> Send Feedback
                   </button>
                   <button onClick={() => handleAction("logout")} className="flex items-center px-4 py-3 hover:bg-red-500/10 text-red-400 hover:text-red-300 transition-colors text-left text-sm">
                     <LogOut className="w-4 h-4 mr-3" /> Log Out
