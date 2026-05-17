@@ -474,21 +474,23 @@ export default function Dashboard() {
               <span className="bg-slate-700 px-3 py-1 rounded-full text-sm">{profile.standard || profile.level}</span>
             </div>
 
-            {liveTeacherClassCode ? (
-              <button 
-                onClick={() => setIsJoiningLive(true)}
-                className="mt-8 bg-red-600 hover:bg-red-500 animate-pulse text-white px-8 py-4 rounded-2xl font-bold transition-all shadow-[0_0_20px_rgba(220,38,38,0.5)] hover:shadow-[0_0_30px_rgba(220,38,38,0.7)] flex items-center justify-center group w-full"
-              >
-                Join Live Video Class <Video className="ml-2 w-5 h-5 group-hover:scale-110 transition-transform" />
-              </button>
-            ) : (
+            <div className="flex flex-col space-y-4 mt-8 w-full">
+              {liveTeacherClassCode && (
+                <button 
+                  onClick={() => setIsJoiningLive(true)}
+                  className="bg-red-600 hover:bg-red-500 animate-pulse text-white px-8 py-4 rounded-2xl font-bold transition-all shadow-[0_0_20px_rgba(220,38,38,0.5)] hover:shadow-[0_0_30px_rgba(220,38,38,0.7)] flex items-center justify-center group w-full"
+                >
+                  Join Live Video Class <Video className="ml-2 w-5 h-5 group-hover:scale-110 transition-transform" />
+                </button>
+              )}
+              
               <button 
                 onClick={() => profile.subject ? router.push("/chat") : toast.error("Please select a subject first.")}
-                className={`mt-8 px-8 py-4 rounded-2xl font-medium transition-all flex items-center group w-full justify-center ${profile.subject ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:shadow-[0_0_30px_rgba(59,130,246,0.5)]' : 'bg-slate-700 text-slate-400 cursor-not-allowed'}`}
+                className={`px-8 py-4 rounded-2xl font-medium transition-all flex items-center group w-full justify-center ${profile.subject ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:shadow-[0_0_30px_rgba(59,130,246,0.5)]' : 'bg-slate-700 text-slate-400 cursor-not-allowed'}`}
               >
-                {profile.subject ? "Resume Learning" : "Select Subject"} <Play className={`ml-2 w-5 h-5 ${profile.subject ? 'group-hover:translate-x-1' : ''} transition-transform fill-current`} />
+                {profile.subject ? `Resume ${profile.subject} Chat` : "Select Subject"} <Play className={`ml-2 w-5 h-5 ${profile.subject ? 'group-hover:translate-x-1' : ''} transition-transform fill-current`} />
               </button>
-            )}
+            </div>
           </div>
         </motion.div>
       </div>
