@@ -49,7 +49,6 @@ export default function TeacherDashboard() {
         }
       }
     };
-    };
     init();
   }, [router]);
 
