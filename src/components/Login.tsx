@@ -2,11 +2,17 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { LogIn, Sparkles, UserPlus, User, GraduationCap } from "lucide-react";
+import { LogIn, Sparkles, UserPlus, User, GraduationCap, Eye, EyeOff } from "lucide-react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { auth } from "@/lib/firebase";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification } from "firebase/auth";
+
+const DISPOSABLE_DOMAINS = [
+  "test.com", "example.com", "mailinator.com", "10minutemail.com", 
+  "tempmail.com", "guerrillamail.com", "yopmail.com", "exam.com",
+  "fake.com", "dummy.com", "localhost"
+];
 
 export default function Login() {
   const router = useRouter();
@@ -14,6 +20,7 @@ export default function Login() {
   const [role, setRole] = useState<"student" | "teacher" | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -21,9 +28,16 @@ export default function Login() {
     if (!email || !password) return;
     
     // Explicit format validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    const trimmedEmail = email.trim();
+    if (!emailRegex.test(trimmedEmail)) {
       toast.error("Please enter a valid email address.");
+      return;
+    }
+
+    const domain = trimmedEmail.split("@")[1]?.toLowerCase();
+    if (DISPOSABLE_DOMAINS.includes(domain)) {
+      toast.error("Please use a real, non-disposable email address.");
       return;
     }
     
@@ -32,7 +46,7 @@ export default function Login() {
     try {
       if (auth) {
         if (isLogin) {
-          const userCredential = await signInWithEmailAndPassword(auth, email, password);
+          const userCredential = await signInWithEmailAndPassword(auth, trimmedEmail, password);
           
           if (!userCredential.user.emailVerified) {
             await auth.signOut();
@@ -55,7 +69,7 @@ export default function Login() {
             }
           }
         } else {
-          const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+          const userCredential = await createUserWithEmailAndPassword(auth, trimmedEmail, password);
           await sendEmailVerification(userCredential.user);
           await auth.signOut();
           toast.success("Verification email sent! Please check your inbox before logging in.", { duration: 6000 });
@@ -64,11 +78,11 @@ export default function Login() {
           setIsLoading(false);
           return;
         }
-        localStorage.setItem("edu_user_id", auth.currentUser?.uid || email);
+        localStorage.setItem("edu_user_id", auth.currentUser?.uid || trimmedEmail);
       } else {
         // Fallback Mock Login
         await new Promise(resolve => setTimeout(resolve, 1000));
-        localStorage.setItem("edu_user_id", email);
+        localStorage.setItem("edu_user_id", trimmedEmail);
       }
 
       localStorage.setItem("edu_auth_token", "mock_token_" + Date.now());
@@ -101,14 +115,26 @@ export default function Login() {
   };
 
   const handleResetPassword = async () => {
-    if (!email) {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
       toast.error("Please enter your email address first.");
+      return;
+    }
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      toast.error("Please enter a valid email address.");
+      return;
+    }
+
+    const domain = trimmedEmail.split("@")[1]?.toLowerCase();
+    if (DISPOSABLE_DOMAINS.includes(domain)) {
+      toast.error("Please use a real, non-disposable email address.");
       return;
     }
     setIsLoading(true);
     try {
       if (auth) {
-        await sendPasswordResetEmail(auth, email);
+        await sendPasswordResetEmail(auth, trimmedEmail);
         toast.success("Password reset email sent! Check your inbox.");
       }
     } catch (error: any) {
@@ -176,14 +202,23 @@ export default function Login() {
                     </button>
                   )}
                 </div>
-                <input 
-                  type="password" 
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                  required
-                />
+                <div className="relative">
+                  <input 
+                    type={showPassword ? "text" : "password"} 
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 pr-12 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                    required
+                  />
+                  <button 
+                    type="button" 
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300 transition-colors focus:outline-none"
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
               </div>
               
               <button 
