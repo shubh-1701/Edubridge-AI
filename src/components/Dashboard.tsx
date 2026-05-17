@@ -29,8 +29,7 @@ export default function Dashboard() {
   const [roadmap, setRoadmap] = useState<RoadmapStep[]>([]);
   const [isLoadingRoadmap, setIsLoadingRoadmap] = useState(false);
   const [customSubjects, setCustomSubjects] = useState<string[]>([]);
-  const [liveTeacherClassCode, setLiveTeacherClassCode] = useState<string | null>(null);
-  const [isJoiningLive, setIsJoiningLive] = useState(false);
+  const [liveMeetingLink, setLiveMeetingLink] = useState<string | null>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -89,14 +88,12 @@ export default function Dashboard() {
               const teacherDoc = snapshot.docs[0].data();
               // Only show the live button if the teacher is actually live AND their subject matches the student's current dashboard subject
               if (teacherDoc.isLive && teacherDoc.subject === profile?.subject) {
-                setLiveTeacherClassCode(code);
+                setLiveMeetingLink(teacherDoc.meetingLink || null);
               } else {
-                setLiveTeacherClassCode(null);
-                setIsJoiningLive(false); // Auto-kick if teacher ends session or student switches subjects
+                setLiveMeetingLink(null);
               }
             } else {
-              setLiveTeacherClassCode(null);
-              setIsJoiningLive(false);
+              setLiveMeetingLink(null);
             }
           });
         }
@@ -479,13 +476,15 @@ export default function Dashboard() {
             </div>
 
             <div className="flex flex-col space-y-4 mt-8 w-full">
-              {liveTeacherClassCode && (
-                <button 
-                  onClick={() => setIsJoiningLive(true)}
-                  className="bg-red-600 hover:bg-red-500 animate-pulse text-white px-8 py-4 rounded-2xl font-bold transition-all shadow-[0_0_20px_rgba(220,38,38,0.5)] hover:shadow-[0_0_30px_rgba(220,38,38,0.7)] flex items-center justify-center group w-full"
+              {liveMeetingLink && (
+                <a 
+                  href={liveMeetingLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-red-600 hover:bg-red-500 animate-pulse text-white px-8 py-4 rounded-2xl font-bold transition-all shadow-[0_0_20px_rgba(220,38,38,0.5)] hover:shadow-[0_0_30px_rgba(220,38,38,0.7)] flex items-center justify-center group w-full no-underline"
                 >
                   Join Live Video Class <Video className="ml-2 w-5 h-5 group-hover:scale-110 transition-transform" />
-                </button>
+                </a>
               )}
               
               <button 
@@ -498,28 +497,6 @@ export default function Dashboard() {
           </div>
         </motion.div>
       </div>
-
-      {/* Jitsi Meet Overlay for Student */}
-      {isJoiningLive && liveTeacherClassCode && (
-        <div className="fixed inset-0 z-50 bg-slate-900 flex flex-col">
-          <div className="bg-slate-800 p-4 flex items-center justify-between shadow-xl">
-            <div className="flex items-center">
-              <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse mr-3" />
-              <h2 className="text-white font-bold text-lg">Live Session with Teacher</h2>
-            </div>
-            <button onClick={() => setIsJoiningLive(false)} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg font-medium flex items-center transition-colors">
-              <X className="w-5 h-5 mr-2" /> Leave Session
-            </button>
-          </div>
-          <div className="flex-1 w-full bg-black">
-            <iframe 
-              src={`https://meet.jit.si/${liveTeacherClassCode}-edubridge-live`}
-              allow="camera; microphone; fullscreen; display-capture; autoplay"
-              className="w-full h-full border-none"
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 }

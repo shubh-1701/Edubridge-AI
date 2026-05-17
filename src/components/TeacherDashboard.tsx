@@ -78,6 +78,15 @@ export default function TeacherDashboard() {
   };
 
   const toggleLive = async () => {
+    let link = "";
+    if (!isLive) {
+      link = window.prompt("Enter your Google Meet or Zoom link:") || "";
+      if (!link) {
+        toast.error("You must provide a meeting link to go live.");
+        return;
+      }
+    }
+
     const newLiveStatus = !isLive;
     setIsLive(newLiveStatus);
     try {
@@ -86,10 +95,10 @@ export default function TeacherDashboard() {
         const { doc, setDoc } = await import("firebase/firestore");
         const userId = localStorage.getItem("edu_user_id");
         if (userId) {
-          await setDoc(doc(db, "users", userId), { isLive: newLiveStatus }, { merge: true });
+          await setDoc(doc(db, "users", userId), { isLive: newLiveStatus, meetingLink: newLiveStatus ? link : null }, { merge: true });
         }
       }
-      if (newLiveStatus) toast.success("You are now live! Students can join.");
+      if (newLiveStatus) toast.success("You are now live! Students can join via your link.");
     } catch(e) {
       console.error(e);
       toast.error("Failed to update live status.");
@@ -201,28 +210,6 @@ export default function TeacherDashboard() {
         </motion.div>
       </div>
 
-      {/* Jitsi Meet Overlay */}
-      {isLive && (
-        <div className="fixed inset-0 z-50 bg-slate-900 flex flex-col">
-          <div className="bg-slate-800 p-4 flex items-center justify-between shadow-xl">
-            <div className="flex items-center">
-              <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse mr-3" />
-              <h2 className="text-white font-bold text-lg">Live Session Active</h2>
-              <span className="ml-4 text-slate-400 font-mono bg-slate-900 px-3 py-1 rounded-md text-sm">{classCode}</span>
-            </div>
-            <button onClick={toggleLive} className="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg font-medium flex items-center transition-colors">
-              <X className="w-5 h-5 mr-2" /> End Session
-            </button>
-          </div>
-          <div className="flex-1 w-full bg-black">
-            <iframe 
-              src={`https://meet.jit.si/${classCode}-edubridge-live`}
-              allow="camera; microphone; fullscreen; display-capture; autoplay"
-              className="w-full h-full border-none"
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 }
