@@ -264,14 +264,27 @@ export default function Chat() {
     
     const loadingToast = toast.loading("Generating PDF... Please wait.");
     
+    // Temp fix for html2canvas long-chat overflow bug
+    const element = chatContainerRef.current;
+    const originalOverflow = element.style.overflow;
+    const originalHeight = element.style.height;
+    
+    element.style.overflow = 'visible';
+    element.style.height = 'auto';
+
     try {
       const html2pdf = (await import("html2pdf.js")).default;
-      const element = chatContainerRef.current;
       const opt: any = {
-        margin:       1,
+        margin:       0.5,
         filename:     `${profile?.subject || 'EduBridge'}_Notes.pdf`,
         image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true, logging: false, scrollY: 0 },
+        html2canvas:  { 
+          scale: 2, 
+          useCORS: true, 
+          logging: false, 
+          scrollY: 0,
+          windowHeight: element.scrollHeight
+        },
         jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
       };
       
@@ -281,12 +294,14 @@ export default function Chat() {
       console.error("PDF generation failed:", error);
       toast.error("Failed to generate PDF. The chat might be too long.", { id: loadingToast });
       
-      // Failsafe: Remove any lingering html2canvas overlay if it crashed
       document.querySelectorAll('iframe').forEach(iframe => {
         if (iframe.style.position === 'fixed' && iframe.style.opacity === '0') {
           iframe.remove();
         }
       });
+    } finally {
+      element.style.overflow = originalOverflow;
+      element.style.height = originalHeight;
     }
   };
 
