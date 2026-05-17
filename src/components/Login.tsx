@@ -48,10 +48,11 @@ export default function Login() {
         if (isLogin) {
           const userCredential = await signInWithEmailAndPassword(auth, trimmedEmail, password);
           
-          if (!userCredential.user.emailVerified) {
-            await auth.signOut();
-            throw new Error("Please verify your email address before logging in. Check your inbox.");
-          }
+          // HOTFIX: Temporarily disabled due to Firebase spam limits blocking verification emails
+          // if (!userCredential.user.emailVerified) {
+          //   await auth.signOut();
+          //   throw new Error("Please verify your email address before logging in. Check your inbox.");
+          // }
           
           // Verify role from Firestore
           const { db } = await import("@/lib/firebase");
@@ -70,13 +71,19 @@ export default function Login() {
           }
         } else {
           const userCredential = await createUserWithEmailAndPassword(auth, trimmedEmail, password);
-          await sendEmailVerification(userCredential.user);
-          await auth.signOut();
-          toast.success("Verification email sent! Please check your inbox (and spam folder) before logging in.", { duration: 6000 });
-          setIsLogin(true);
-          setPassword("");
-          setIsLoading(false);
-          return;
+          try {
+            await sendEmailVerification(userCredential.user);
+          } catch (e) { console.log("Verification email suppressed by limits"); }
+          
+          // HOTFIX: Let the user proceed immediately without forcing verification wait
+          // await auth.signOut();
+          // toast.success("Verification email sent! Please check your inbox (and spam folder) before logging in.", { duration: 6000 });
+          // setIsLogin(true);
+          // setPassword("");
+          // setIsLoading(false);
+          // return;
+          
+          toast.success("Account created successfully! Welcome.");
         }
         localStorage.setItem("edu_user_id", auth.currentUser?.uid || trimmedEmail);
       } else {
