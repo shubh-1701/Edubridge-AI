@@ -778,10 +778,10 @@ export default function Dashboard() {
             <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-800/50">
               <div className="flex items-center">
                 <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center font-bold text-white mr-3">
-                  {chatTeacher.name?.charAt(0).toUpperCase()}
+                  {(chatTeacher.name || 'T').charAt(0).toUpperCase()}
                 </div>
                 <div>
-                  <h3 className="font-bold text-white">{chatTeacher.name}</h3>
+                  <h3 className="font-bold text-white">{chatTeacher.name || 'Teacher'}</h3>
                   <p className="text-xs text-slate-400">Direct Message</p>
                 </div>
               </div>
