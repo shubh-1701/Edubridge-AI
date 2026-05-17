@@ -6,7 +6,7 @@ import { LogIn, Sparkles, UserPlus, User, GraduationCap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { auth } from "@/lib/firebase";
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification } from "firebase/auth";
 
 export default function Login() {
   const router = useRouter();
@@ -34,6 +34,11 @@ export default function Login() {
         if (isLogin) {
           const userCredential = await signInWithEmailAndPassword(auth, email, password);
           
+          if (!userCredential.user.emailVerified) {
+            await auth.signOut();
+            throw new Error("Please verify your email address before logging in. Check your inbox.");
+          }
+          
           // Verify role from Firestore
           const { db } = await import("@/lib/firebase");
           if (db) {
@@ -50,7 +55,14 @@ export default function Login() {
             }
           }
         } else {
-          await createUserWithEmailAndPassword(auth, email, password);
+          const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+          await sendEmailVerification(userCredential.user);
+          await auth.signOut();
+          toast.success("Verification email sent! Please check your inbox before logging in.", { duration: 6000 });
+          setIsLogin(true);
+          setPassword("");
+          setIsLoading(false);
+          return;
         }
         localStorage.setItem("edu_user_id", auth.currentUser?.uid || email);
       } else {
