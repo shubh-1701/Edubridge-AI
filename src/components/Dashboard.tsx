@@ -43,6 +43,10 @@ export default function Dashboard() {
       
       const p = await loadData("edu_profile");
       if (p) {
+        if (p.role === "teacher") {
+          router.push("/teacher");
+          return;
+        }
         setProfile(p);
         if (p.subject) fetchRoadmap(p);
       } else {
@@ -133,8 +137,11 @@ export default function Dashboard() {
           
           unsubscribe = onSnapshot(q, (snapshot) => {
             const teachers: any[] = [];
+            const myUserId = localStorage.getItem("edu_user_id");
             snapshot.forEach((doc) => {
-              teachers.push({ id: doc.id, ...doc.data() });
+              if (doc.id !== myUserId) {
+                teachers.push({ id: doc.id, ...doc.data() });
+              }
             });
             setAvailableTeachers(teachers);
           });
