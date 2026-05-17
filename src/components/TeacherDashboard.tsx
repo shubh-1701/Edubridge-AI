@@ -265,7 +265,6 @@ export default function TeacherDashboard() {
                     <div className="flex items-center text-sm text-slate-300">
                       <Star className="w-4 h-4 mr-2 text-yellow-400" /> {student.xp || 0} XP
                     </div>
-                    </div>
                   </div>
                   
                   <button 
