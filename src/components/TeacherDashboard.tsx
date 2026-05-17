@@ -279,9 +279,7 @@ export default function TeacherDashboard() {
           )}
         </motion.div>
       </div>
-
-    </div>
-    
+      
       {/* Direct Messaging Panel */}
       <AnimatePresence>
         {chatStudent && (
@@ -341,6 +339,6 @@ export default function TeacherDashboard() {
           </motion.div>
         )}
       </AnimatePresence>
-
+    </div>
   );
 }
