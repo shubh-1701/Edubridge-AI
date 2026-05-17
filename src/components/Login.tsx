@@ -72,7 +72,7 @@ export default function Login() {
           const userCredential = await createUserWithEmailAndPassword(auth, trimmedEmail, password);
           await sendEmailVerification(userCredential.user);
           await auth.signOut();
-          toast.success("Verification email sent! Please check your inbox before logging in.", { duration: 6000 });
+          toast.success("Verification email sent! Please check your inbox (and spam folder) before logging in.", { duration: 6000 });
           setIsLogin(true);
           setPassword("");
           setIsLoading(false);
@@ -135,7 +135,7 @@ export default function Login() {
     try {
       if (auth) {
         await sendPasswordResetEmail(auth, trimmedEmail);
-        toast.success("Password reset email sent! Check your inbox.");
+        toast.success("Password reset email sent! Check your inbox and spam folder.");
       }
     } catch (error: any) {
       toast.error(error.message || "Failed to send reset email.");
