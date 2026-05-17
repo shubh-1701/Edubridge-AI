@@ -31,6 +31,10 @@ export default function Dashboard() {
   const [customSubjects, setCustomSubjects] = useState<string[]>([]);
   const [liveMeetingLink, setLiveMeetingLink] = useState<string | null>(null);
   const [availableTeachers, setAvailableTeachers] = useState<any[]>([]);
+  const [selectedTeacher, setSelectedTeacher] = useState<any | null>(null);
+  const [chatTeacher, setChatTeacher] = useState<any | null>(null);
+  const [directMessages, setDirectMessages] = useState<any[]>([]);
+  const [messageInput, setMessageInput] = useState("");
   const settingsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -156,6 +160,65 @@ export default function Dashboard() {
       if (unsubscribe) unsubscribe();
     };
   }, [profile?.subject]);
+
+  // Listen for direct messages when a chat is open
+  useEffect(() => {
+    if (!chatTeacher) return;
+    
+    let unsubscribe: any;
+    const fetchMessages = async () => {
+      try {
+        const { db } = await import("@/lib/firebase");
+        if (db) {
+          const { collection, query, where, onSnapshot } = await import("firebase/firestore");
+          const myId = localStorage.getItem("edu_user_id");
+          
+          const q = query(
+            collection(db, "direct_messages"),
+            where("studentId", "==", myId),
+            where("teacherId", "==", chatTeacher.id)
+          );
+          
+          unsubscribe = onSnapshot(q, (snapshot) => {
+            const msgs: any[] = [];
+            snapshot.forEach(doc => msgs.push({ id: doc.id, ...doc.data() }));
+            // Sort locally by timestamp (avoids needing a complex composite index for this query)
+            msgs.sort((a, b) => (a.timestamp?.toMillis() || 0) - (b.timestamp?.toMillis() || 0));
+            setDirectMessages(msgs);
+          });
+        }
+      } catch (e) {
+        console.error("Failed to fetch messages", e);
+      }
+    };
+    fetchMessages();
+    return () => { if (unsubscribe) unsubscribe(); };
+  }, [chatTeacher]);
+
+  const sendDirectMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!messageInput.trim() || !chatTeacher) return;
+    
+    try {
+      const { db } = await import("@/lib/firebase");
+      if (db) {
+        const { collection, addDoc, serverTimestamp } = await import("firebase/firestore");
+        const myId = localStorage.getItem("edu_user_id");
+        
+        await addDoc(collection(db, "direct_messages"), {
+          studentId: myId,
+          teacherId: chatTeacher.id,
+          senderId: myId,
+          text: messageInput.trim(),
+          timestamp: serverTimestamp()
+        });
+        setMessageInput("");
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to send message");
+    }
+  };
 
   const connectWithTeacher = async (teacher: any) => {
     if (!teacher.classCode) {
@@ -587,21 +650,21 @@ export default function Dashboard() {
                 {availableTeachers.map((teacher, i) => {
                   const isConnected = (profile as any).classCode === teacher.classCode;
                   return (
-                    <div key={i} className="bg-slate-900/50 p-4 rounded-2xl border border-slate-700 flex flex-col justify-between">
-                      <div>
+                    <div key={i} className="bg-slate-900/50 p-4 rounded-2xl border border-slate-700 flex flex-col justify-between hover:border-slate-500 transition-colors">
+                      <div className="cursor-pointer mb-4" onClick={() => setSelectedTeacher(teacher)}>
                         <div className="flex items-center space-x-3 mb-2">
                           <div className="w-10 h-10 bg-slate-700 rounded-full flex items-center justify-center font-bold text-white">
                             {teacher.name?.charAt(0).toUpperCase() || "T"}
                           </div>
                           <div>
-                            <h4 className="font-bold text-white">{teacher.name || "Unknown Teacher"}</h4>
+                            <h4 className="font-bold text-white group-hover:text-blue-400 transition-colors">{teacher.name || "Unknown Teacher"}</h4>
                             <div className="flex items-center mt-1">
                               <div className={`w-2 h-2 rounded-full mr-2 ${teacher.isLive ? 'bg-red-500 animate-pulse' : 'bg-slate-500'}`} />
                               <span className="text-xs text-slate-400">{teacher.isLive ? 'Live Now' : 'Offline'}</span>
                             </div>
                           </div>
                         </div>
-                        <p className="text-xs text-slate-400 mt-2 mb-4 line-clamp-2">{teacher.language ? `Speaks ${teacher.language}` : 'Ready to teach'}</p>
+                        <p className="text-xs text-slate-400 mt-2 line-clamp-2">{teacher.language ? `Speaks ${teacher.language}` : 'Ready to teach'}</p>
                       </div>
                       <button 
                         onClick={() => !isConnected && connectWithTeacher(teacher)}
@@ -619,6 +682,125 @@ export default function Dashboard() {
         )}
 
       </div>
+      
+      {/* Teacher Profile Modal */}
+      <AnimatePresence>
+        {selectedTeacher && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm"
+            onClick={() => setSelectedTeacher(null)}
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-slate-800 border border-slate-700 rounded-3xl p-8 max-w-md w-full shadow-2xl relative"
+            >
+              <button onClick={() => setSelectedTeacher(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors"><X className="w-6 h-6" /></button>
+              
+              <div className="flex flex-col items-center mb-6">
+                <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center font-bold text-4xl text-white shadow-lg mb-4">
+                  {selectedTeacher.name?.charAt(0).toUpperCase() || "T"}
+                </div>
+                <h2 className="text-2xl font-bold text-white">{selectedTeacher.name}</h2>
+                <div className="flex items-center mt-2">
+                  <div className={`w-2.5 h-2.5 rounded-full mr-2 ${selectedTeacher.isLive ? 'bg-red-500 animate-pulse' : 'bg-slate-500'}`} />
+                  <span className="text-sm font-medium text-slate-300">{selectedTeacher.isLive ? 'Live Now' : 'Offline'}</span>
+                </div>
+              </div>
+              
+              <div className="space-y-4 mb-8">
+                <div className="flex items-center justify-between p-4 bg-slate-900/50 rounded-xl border border-slate-700">
+                  <span className="text-slate-400 text-sm">Subject</span>
+                  <span className="text-white font-bold">{selectedTeacher.subject}</span>
+                </div>
+                <div className="flex items-center justify-between p-4 bg-slate-900/50 rounded-xl border border-slate-700">
+                  <span className="text-slate-400 text-sm">Language</span>
+                  <span className="text-white font-bold">{selectedTeacher.language || 'English'}</span>
+                </div>
+              </div>
+              
+              <div className="flex flex-col space-y-3">
+                <button 
+                  onClick={() => { setSelectedTeacher(null); setChatTeacher(selectedTeacher); }}
+                  className="w-full py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold transition-all shadow-[0_0_15px_rgba(59,130,246,0.3)] flex items-center justify-center"
+                >
+                  <MessageSquare className="w-5 h-5 mr-2" /> Message Teacher
+                </button>
+                {((profile as any).classCode !== selectedTeacher.classCode) && (
+                  <button 
+                    onClick={() => { connectWithTeacher(selectedTeacher); setSelectedTeacher(null); }}
+                    className="w-full py-4 bg-slate-700 hover:bg-slate-600 text-white rounded-xl font-bold transition-all"
+                  >
+                    Connect for Live Classes
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Direct Messaging Panel */}
+      <AnimatePresence>
+        {chatTeacher && (
+          <motion.div 
+            initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }}
+            className="fixed inset-y-0 right-0 z-50 w-full md:w-96 bg-slate-900 border-l border-slate-800 shadow-2xl flex flex-col"
+          >
+            <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-800/50">
+              <div className="flex items-center">
+                <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center font-bold text-white mr-3">
+                  {chatTeacher.name?.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <h3 className="font-bold text-white">{chatTeacher.name}</h3>
+                  <p className="text-xs text-slate-400">Direct Message</p>
+                </div>
+              </div>
+              <button onClick={() => setChatTeacher(null)} className="p-2 text-slate-400 hover:bg-slate-700 hover:text-white rounded-full transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {directMessages.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center opacity-50">
+                  <MessageSquare className="w-12 h-12 text-slate-500 mb-4" />
+                  <p className="text-slate-400 text-sm">Send a message to {chatTeacher.name}.<br/>They will see it in their inbox.</p>
+                </div>
+              ) : (
+                directMessages.map((msg, i) => {
+                  const isMe = msg.senderId === localStorage.getItem("edu_user_id");
+                  return (
+                    <div key={i} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[80%] p-3 rounded-2xl ${isMe ? 'bg-blue-600 text-white rounded-br-sm' : 'bg-slate-800 border border-slate-700 text-slate-200 rounded-bl-sm'}`}>
+                        <p className="text-sm break-words">{msg.text}</p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            
+            <div className="p-4 border-t border-slate-800 bg-slate-900">
+              <form onSubmit={sendDirectMessage} className="flex space-x-2">
+                <input 
+                  type="text" 
+                  value={messageInput}
+                  onChange={e => setMessageInput(e.target.value)}
+                  placeholder="Type a message..."
+                  className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 text-white text-sm transition-colors"
+                />
+                <button type="submit" disabled={!messageInput.trim()} className="bg-blue-600 hover:bg-blue-500 text-white p-3 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                  <Play className="w-5 h-5 fill-current" />
+                </button>
+              </form>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }

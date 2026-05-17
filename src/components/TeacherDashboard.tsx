@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import { LogOut, Users, BookOpen, Star, RefreshCw, Copy, Check, Video, VideoOff, X } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { LogOut, Users, BookOpen, Star, RefreshCw, Copy, Check, Video, VideoOff, X, MessageSquare, Play } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { loadData, removeData, saveData } from "@/lib/db";
 import toast from "react-hot-toast";
@@ -15,6 +15,9 @@ export default function TeacherDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [isLive, setIsLive] = useState(false);
+  const [chatStudent, setChatStudent] = useState<any | null>(null);
+  const [directMessages, setDirectMessages] = useState<any[]>([]);
+  const [messageInput, setMessageInput] = useState("");
 
   useEffect(() => {
     const init = async () => {
@@ -46,8 +49,68 @@ export default function TeacherDashboard() {
         }
       }
     };
+    };
     init();
   }, [router]);
+
+  // Listen for direct messages when a chat is open
+  useEffect(() => {
+    if (!chatStudent) return;
+    
+    let unsubscribe: any;
+    const fetchMessages = async () => {
+      try {
+        const { db } = await import("@/lib/firebase");
+        if (db) {
+          const { collection, query, where, onSnapshot } = await import("firebase/firestore");
+          const myId = localStorage.getItem("edu_user_id");
+          
+          const q = query(
+            collection(db, "direct_messages"),
+            where("teacherId", "==", myId),
+            where("studentId", "==", chatStudent.id)
+          );
+          
+          unsubscribe = onSnapshot(q, (snapshot) => {
+            const msgs: any[] = [];
+            snapshot.forEach(doc => msgs.push({ id: doc.id, ...doc.data() }));
+            // Sort locally by timestamp
+            msgs.sort((a, b) => (a.timestamp?.toMillis() || 0) - (b.timestamp?.toMillis() || 0));
+            setDirectMessages(msgs);
+          });
+        }
+      } catch (e) {
+        console.error("Failed to fetch messages", e);
+      }
+    };
+    fetchMessages();
+    return () => { if (unsubscribe) unsubscribe(); };
+  }, [chatStudent]);
+
+  const sendDirectMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!messageInput.trim() || !chatStudent) return;
+    
+    try {
+      const { db } = await import("@/lib/firebase");
+      if (db) {
+        const { collection, addDoc, serverTimestamp } = await import("firebase/firestore");
+        const myId = localStorage.getItem("edu_user_id");
+        
+        await addDoc(collection(db, "direct_messages"), {
+          teacherId: myId,
+          studentId: chatStudent.id,
+          senderId: myId,
+          text: messageInput.trim(),
+          timestamp: serverTimestamp()
+        });
+        setMessageInput("");
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to send message");
+    }
+  };
 
   const fetchStudents = async (code: string) => {
     setIsLoading(true);
@@ -203,7 +266,15 @@ export default function TeacherDashboard() {
                     <div className="flex items-center text-sm text-slate-300">
                       <Star className="w-4 h-4 mr-2 text-yellow-400" /> {student.xp || 0} XP
                     </div>
+                    </div>
                   </div>
+                  
+                  <button 
+                    onClick={() => setChatStudent(student)}
+                    className="w-full mt-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold transition-all shadow-lg flex items-center justify-center text-sm"
+                  >
+                    <MessageSquare className="w-4 h-4 mr-2" /> Message Student
+                  </button>
                 </div>
               ))}
             </div>
@@ -212,5 +283,66 @@ export default function TeacherDashboard() {
       </div>
 
     </div>
+    
+      {/* Direct Messaging Panel */}
+      <AnimatePresence>
+        {chatStudent && (
+          <motion.div 
+            initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }}
+            className="fixed inset-y-0 right-0 z-50 w-full md:w-96 bg-slate-900 border-l border-slate-800 shadow-2xl flex flex-col"
+          >
+            <div className="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-800/50">
+              <div className="flex items-center">
+                <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center font-bold text-white mr-3">
+                  {chatStudent.name?.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <h3 className="font-bold text-white">{chatStudent.name}</h3>
+                  <p className="text-xs text-slate-400">Direct Message</p>
+                </div>
+              </div>
+              <button onClick={() => setChatStudent(null)} className="p-2 text-slate-400 hover:bg-slate-700 hover:text-white rounded-full transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {directMessages.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center opacity-50">
+                  <MessageSquare className="w-12 h-12 text-slate-500 mb-4" />
+                  <p className="text-slate-400 text-sm">Send a message to {chatStudent.name}.</p>
+                </div>
+              ) : (
+                directMessages.map((msg, i) => {
+                  const isMe = msg.senderId === localStorage.getItem("edu_user_id");
+                  return (
+                    <div key={i} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[80%] p-3 rounded-2xl ${isMe ? 'bg-blue-600 text-white rounded-br-sm' : 'bg-slate-800 border border-slate-700 text-slate-200 rounded-bl-sm'}`}>
+                        <p className="text-sm break-words">{msg.text}</p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            
+            <div className="p-4 border-t border-slate-800 bg-slate-900">
+              <form onSubmit={sendDirectMessage} className="flex space-x-2">
+                <input 
+                  type="text" 
+                  value={messageInput}
+                  onChange={e => setMessageInput(e.target.value)}
+                  placeholder="Type a message..."
+                  className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 text-white text-sm transition-colors"
+                />
+                <button type="submit" disabled={!messageInput.trim()} className="bg-blue-600 hover:bg-blue-500 text-white p-3 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                  <Play className="w-5 h-5 fill-current" />
+                </button>
+              </form>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
   );
 }
