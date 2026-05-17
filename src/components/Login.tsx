@@ -88,7 +88,13 @@ export default function Login() {
         router.push("/onboarding");
       }
     } catch (error: any) {
-      toast.error(error.message || "Failed to authenticate.");
+      let errorMessage = error.message || "Failed to authenticate.";
+      if (error.code === 'auth/invalid-email') errorMessage = "Please enter a valid email address.";
+      else if (error.code === 'auth/user-not-found') errorMessage = "No account found with this email.";
+      else if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') errorMessage = "Incorrect email or password.";
+      else if (error.code === 'auth/email-already-in-use') errorMessage = "An account already exists with this email.";
+      
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
