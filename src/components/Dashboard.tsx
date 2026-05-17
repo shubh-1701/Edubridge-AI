@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { BookOpen, Play, Settings, Star, LogOut, Trash2, Edit3, Map, CheckCircle2, Loader2, MessageSquare, Link, Video, X } from "lucide-react";
+import { BookOpen, Play, Settings, Star, LogOut, Trash2, Edit3, Map, CheckCircle2, Loader2, MessageSquare, Link, Video, X, Users } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { loadData, removeData, saveData } from "@/lib/db";
 import { useRouter } from "next/navigation";
@@ -30,6 +30,7 @@ export default function Dashboard() {
   const [isLoadingRoadmap, setIsLoadingRoadmap] = useState(false);
   const [customSubjects, setCustomSubjects] = useState<string[]>([]);
   const [liveMeetingLink, setLiveMeetingLink] = useState<string | null>(null);
+  const [availableTeachers, setAvailableTeachers] = useState<any[]>([]);
   const settingsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -110,6 +111,68 @@ export default function Dashboard() {
       if (unsubscribe) unsubscribe();
     };
   }, [profile]);
+
+  // Listen for available teachers for current subject
+  useEffect(() => {
+    if (!profile?.subject) {
+      setAvailableTeachers([]);
+      return;
+    }
+    
+    let unsubscribe: any;
+    const fetchTeachers = async () => {
+      try {
+        const { db } = await import("@/lib/firebase");
+        if (db) {
+          const { collection, query, where, onSnapshot } = await import("firebase/firestore");
+          const q = query(
+            collection(db, "users"), 
+            where("role", "==", "teacher"),
+            where("subject", "==", profile.subject)
+          );
+          
+          unsubscribe = onSnapshot(q, (snapshot) => {
+            const teachers: any[] = [];
+            snapshot.forEach((doc) => {
+              teachers.push({ id: doc.id, ...doc.data() });
+            });
+            setAvailableTeachers(teachers);
+          });
+        }
+      } catch (e) {
+        console.error("Failed to fetch available teachers", e);
+      }
+    };
+    fetchTeachers();
+    
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [profile?.subject]);
+
+  const connectWithTeacher = async (teacher: any) => {
+    if (!teacher.classCode) {
+      toast.error("This teacher has not generated a class code yet.");
+      return;
+    }
+    try {
+      const { db } = await import("@/lib/firebase");
+      if (db) {
+        const { doc, setDoc } = await import("firebase/firestore");
+        const userId = localStorage.getItem("edu_user_id");
+        if (userId) {
+          await setDoc(doc(db, "users", userId), { classCode: teacher.classCode }, { merge: true });
+          const newProfile = { ...profile, classCode: teacher.classCode };
+          setProfile(newProfile as any);
+          await saveData("edu_profile", newProfile);
+          toast.success(`Successfully connected with ${teacher.name}!`);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to connect with teacher.");
+    }
+  };
 
   const fetchRoadmap = async (userProfile: any) => {
     const cacheKey = `edu_roadmap_${userProfile.subject}`;
@@ -496,6 +559,58 @@ export default function Dashboard() {
             </div>
           </div>
         </motion.div>
+
+        {/* Available Teachers */}
+        {profile?.subject && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+            className="bg-slate-800 border border-slate-700 p-8 rounded-3xl"
+          >
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="bg-blue-500/20 p-2 rounded-xl">
+                <Users className="w-5 h-5 text-blue-400" />
+              </div>
+              <h3 className="text-lg font-bold text-white">Available {profile.subject} Teachers</h3>
+            </div>
+            
+            {availableTeachers.length === 0 ? (
+              <p className="text-slate-500 text-sm italic">No teachers are currently available for {profile.subject}.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {availableTeachers.map((teacher, i) => {
+                  const isConnected = (profile as any).classCode === teacher.classCode;
+                  return (
+                    <div key={i} className="bg-slate-900/50 p-4 rounded-2xl border border-slate-700 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center space-x-3 mb-2">
+                          <div className="w-10 h-10 bg-slate-700 rounded-full flex items-center justify-center font-bold text-white">
+                            {teacher.name?.charAt(0).toUpperCase() || "T"}
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-white">{teacher.name || "Unknown Teacher"}</h4>
+                            <div className="flex items-center mt-1">
+                              <div className={`w-2 h-2 rounded-full mr-2 ${teacher.isLive ? 'bg-red-500 animate-pulse' : 'bg-slate-500'}`} />
+                              <span className="text-xs text-slate-400">{teacher.isLive ? 'Live Now' : 'Offline'}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <p className="text-xs text-slate-400 mt-2 mb-4 line-clamp-2">{teacher.language ? `Speaks ${teacher.language}` : 'Ready to teach'}</p>
+                      </div>
+                      <button 
+                        onClick={() => !isConnected && connectWithTeacher(teacher)}
+                        disabled={isConnected}
+                        className={`w-full py-2 rounded-xl text-sm font-bold transition-all ${isConnected ? 'bg-emerald-500/20 text-emerald-400 cursor-default' : 'bg-blue-600 hover:bg-blue-500 text-white'}`}
+                      >
+                        {isConnected ? 'Connected' : 'Connect'}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </motion.div>
+        )}
+
       </div>
     </div>
   );
