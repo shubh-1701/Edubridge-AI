@@ -261,16 +261,33 @@ export default function Chat() {
 
   const downloadPDF = async () => {
     if (typeof window === "undefined" || !chatContainerRef.current) return;
-    const html2pdf = (await import("html2pdf.js")).default;
-    const element = chatContainerRef.current;
-    const opt: any = {
-      margin:       1,
-      filename:     `${profile?.subject}_Notes.pdf`,
-      image:        { type: 'jpeg', quality: 0.98 },
-      html2canvas:  { scale: 2, useCORS: true },
-      jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
-    };
-    html2pdf().set(opt).from(element).save();
+    
+    const loadingToast = toast.loading("Generating PDF... Please wait.");
+    
+    try {
+      const html2pdf = (await import("html2pdf.js")).default;
+      const element = chatContainerRef.current;
+      const opt: any = {
+        margin:       1,
+        filename:     `${profile?.subject || 'EduBridge'}_Notes.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true, logging: false, scrollY: 0 },
+        jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+      };
+      
+      await html2pdf().set(opt).from(element).save();
+      toast.success("PDF Downloaded Successfully!", { id: loadingToast });
+    } catch (error) {
+      console.error("PDF generation failed:", error);
+      toast.error("Failed to generate PDF. The chat might be too long.", { id: loadingToast });
+      
+      // Failsafe: Remove any lingering html2canvas overlay if it crashed
+      document.querySelectorAll('iframe').forEach(iframe => {
+        if (iframe.style.position === 'fixed' && iframe.style.opacity === '0') {
+          iframe.remove();
+        }
+      });
+    }
   };
 
   const renderMessageContent = (content: string, isAssistant: boolean) => {
