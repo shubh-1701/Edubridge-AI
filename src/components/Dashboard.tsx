@@ -87,12 +87,16 @@ export default function Dashboard() {
           unsubscribe = onSnapshot(q, (snapshot) => {
             if (!snapshot.empty) {
               const teacherDoc = snapshot.docs[0].data();
-              if (teacherDoc.isLive) {
+              // Only show the live button if the teacher is actually live AND their subject matches the student's current dashboard subject
+              if (teacherDoc.isLive && teacherDoc.subject === profile?.subject) {
                 setLiveTeacherClassCode(code);
               } else {
                 setLiveTeacherClassCode(null);
-                setIsJoiningLive(false); // Auto-kick if teacher ends session
+                setIsJoiningLive(false); // Auto-kick if teacher ends session or student switches subjects
               }
+            } else {
+              setLiveTeacherClassCode(null);
+              setIsJoiningLive(false);
             }
           });
         }
