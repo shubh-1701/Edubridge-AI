@@ -15,7 +15,9 @@ export const saveData = async (key: string, data: any) => {
   if (db) {
     try {
       const uid = getUserId();
-      await setDoc(doc(db, "users", uid), { [key]: data }, { merge: true });
+      // Sanitize data for Firestore (Firebase crashes on 'undefined' values, but JSON.stringify strips them)
+      const safeData = typeof data === 'string' ? data : JSON.parse(JSON.stringify(data));
+      await setDoc(doc(db, "users", uid), { [key]: safeData }, { merge: true });
     } catch (error) {
       console.error(`Firebase save error for ${key}:`, error);
     }
