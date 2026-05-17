@@ -16,7 +16,7 @@ export default function TeacherDashboard() {
   const [copied, setCopied] = useState(false);
   const [isLive, setIsLive] = useState(false);
   const [chatStudent, setChatStudent] = useState<any | null>(null);
-  const [directMessages, setDirectMessages] = useState<any[]>([]);
+  const [allDirectMessages, setAllDirectMessages] = useState<any[]>([]);
   const [messageInput, setMessageInput] = useState("");
 
   useEffect(() => {
@@ -52,10 +52,8 @@ export default function TeacherDashboard() {
     init();
   }, [router]);
 
-  // Listen for direct messages when a chat is open
+  // Listen for ALL direct messages for this teacher globally
   useEffect(() => {
-    if (!chatStudent) return;
-    
     let unsubscribe: any;
     const fetchMessages = async () => {
       try {
@@ -63,11 +61,11 @@ export default function TeacherDashboard() {
         if (db) {
           const { collection, query, where, onSnapshot } = await import("firebase/firestore");
           const myId = localStorage.getItem("edu_user_id");
+          if (!myId) return;
           
           const q = query(
             collection(db, "direct_messages"),
-            where("teacherId", "==", myId),
-            where("studentId", "==", chatStudent.id)
+            where("teacherId", "==", myId)
           );
           
           unsubscribe = onSnapshot(q, (snapshot) => {
@@ -75,7 +73,7 @@ export default function TeacherDashboard() {
             snapshot.forEach(doc => msgs.push({ id: doc.id, ...doc.data() }));
             // Sort locally by timestamp
             msgs.sort((a, b) => (a.timestamp?.toMillis() || 0) - (b.timestamp?.toMillis() || 0));
-            setDirectMessages(msgs);
+            setAllDirectMessages(msgs);
           });
         }
       } catch (e) {
@@ -84,7 +82,28 @@ export default function TeacherDashboard() {
     };
     fetchMessages();
     return () => { if (unsubscribe) unsubscribe(); };
-  }, [chatStudent]);
+  }, []);
+
+  const directMessages = chatStudent ? allDirectMessages.filter(m => m.studentId === chatStudent.id) : [];
+
+  // Mark messages as read when chat is open
+  useEffect(() => {
+    if (!chatStudent) return;
+    const markRead = async () => {
+      const myId = localStorage.getItem("edu_user_id");
+      const unreadMsgs = directMessages.filter(m => m.senderId !== myId && !m.read);
+      if (unreadMsgs.length > 0) {
+        const { db } = await import("@/lib/firebase");
+        if (db) {
+          const { doc, updateDoc } = await import("firebase/firestore");
+          unreadMsgs.forEach(m => {
+            updateDoc(doc(db, "direct_messages", m.id), { read: true }).catch(console.error);
+          });
+        }
+      }
+    };
+    markRead();
+  }, [directMessages, chatStudent]);
 
   const sendDirectMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,7 +120,8 @@ export default function TeacherDashboard() {
           studentId: chatStudent.id,
           senderId: myId,
           text: messageInput.trim(),
-          timestamp: serverTimestamp()
+          timestamp: serverTimestamp(),
+          read: false
         });
         setMessageInput("");
       }
@@ -244,9 +264,17 @@ export default function TeacherDashboard() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {students.map((student, i) => (
-                <div key={i} className="bg-slate-800 border border-slate-700 p-6 rounded-2xl shadow-lg relative overflow-hidden">
-                  <div className="absolute -top-6 -right-6 w-24 h-24 bg-blue-500/10 rounded-full blur-xl pointer-events-none" />
+              {students.map((student, i) => {
+                const myId = localStorage.getItem("edu_user_id");
+                const unreadCount = allDirectMessages.filter(m => m.studentId === student.id && m.senderId !== myId && !m.read).length;
+                return (
+                  <div key={i} className="bg-slate-800 border border-slate-700 p-6 rounded-2xl shadow-lg relative overflow-hidden">
+                    {unreadCount > 0 && (
+                      <div className="absolute top-4 right-4 bg-red-500 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center border-2 border-slate-800 z-10 animate-bounce">
+                        {unreadCount}
+                      </div>
+                    )}
+                    <div className="absolute -top-6 -right-6 w-24 h-24 bg-blue-500/10 rounded-full blur-xl pointer-events-none" />
                   
                   <div className="flex items-center space-x-4 mb-4">
                     <div className="w-12 h-12 bg-slate-700 rounded-full flex items-center justify-center font-bold text-xl text-white">
@@ -274,7 +302,7 @@ export default function TeacherDashboard() {
                     <MessageSquare className="w-4 h-4 mr-2" /> Message Student
                   </button>
                 </div>
-              ))}
+              )})}
             </div>
           )}
         </motion.div>

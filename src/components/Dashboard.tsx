@@ -33,7 +33,7 @@ export default function Dashboard() {
   const [availableTeachers, setAvailableTeachers] = useState<any[]>([]);
   const [selectedTeacher, setSelectedTeacher] = useState<any | null>(null);
   const [chatTeacher, setChatTeacher] = useState<any | null>(null);
-  const [directMessages, setDirectMessages] = useState<any[]>([]);
+  const [allDirectMessages, setAllDirectMessages] = useState<any[]>([]);
   const [messageInput, setMessageInput] = useState("");
   const settingsRef = useRef<HTMLDivElement>(null);
 
@@ -161,10 +161,8 @@ export default function Dashboard() {
     };
   }, [profile?.subject]);
 
-  // Listen for direct messages when a chat is open
+  // Listen for ALL direct messages for this student globally
   useEffect(() => {
-    if (!chatTeacher) return;
-    
     let unsubscribe: any;
     const fetchMessages = async () => {
       try {
@@ -172,19 +170,19 @@ export default function Dashboard() {
         if (db) {
           const { collection, query, where, onSnapshot } = await import("firebase/firestore");
           const myId = localStorage.getItem("edu_user_id");
+          if (!myId) return;
           
           const q = query(
             collection(db, "direct_messages"),
-            where("studentId", "==", myId),
-            where("teacherId", "==", chatTeacher.id)
+            where("studentId", "==", myId)
           );
           
           unsubscribe = onSnapshot(q, (snapshot) => {
             const msgs: any[] = [];
             snapshot.forEach(doc => msgs.push({ id: doc.id, ...doc.data() }));
-            // Sort locally by timestamp (avoids needing a complex composite index for this query)
+            // Sort locally by timestamp
             msgs.sort((a, b) => (a.timestamp?.toMillis() || 0) - (b.timestamp?.toMillis() || 0));
-            setDirectMessages(msgs);
+            setAllDirectMessages(msgs);
           });
         }
       } catch (e) {
@@ -193,7 +191,28 @@ export default function Dashboard() {
     };
     fetchMessages();
     return () => { if (unsubscribe) unsubscribe(); };
-  }, [chatTeacher]);
+  }, []);
+
+  const directMessages = chatTeacher ? allDirectMessages.filter(m => m.teacherId === chatTeacher.id) : [];
+
+  // Mark messages as read when chat is open
+  useEffect(() => {
+    if (!chatTeacher) return;
+    const markRead = async () => {
+      const myId = localStorage.getItem("edu_user_id");
+      const unreadMsgs = directMessages.filter(m => m.senderId !== myId && !m.read);
+      if (unreadMsgs.length > 0) {
+        const { db } = await import("@/lib/firebase");
+        if (db) {
+          const { doc, updateDoc } = await import("firebase/firestore");
+          unreadMsgs.forEach(m => {
+            updateDoc(doc(db, "direct_messages", m.id), { read: true }).catch(console.error);
+          });
+        }
+      }
+    };
+    markRead();
+  }, [directMessages, chatTeacher]);
 
   const sendDirectMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -210,7 +229,8 @@ export default function Dashboard() {
           teacherId: chatTeacher.id,
           senderId: myId,
           text: messageInput.trim(),
-          timestamp: serverTimestamp()
+          timestamp: serverTimestamp(),
+          read: false
         });
         setMessageInput("");
       }
@@ -649,8 +669,15 @@ export default function Dashboard() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {availableTeachers.map((teacher, i) => {
                   const isConnected = (profile as any).classCode === teacher.classCode;
+                  const myId = localStorage.getItem("edu_user_id");
+                  const unreadCount = allDirectMessages.filter(m => m.teacherId === teacher.id && m.senderId !== myId && !m.read).length;
                   return (
-                    <div key={i} className="bg-slate-900/50 p-4 rounded-2xl border border-slate-700 flex flex-col justify-between hover:border-slate-500 transition-colors">
+                    <div key={i} className="bg-slate-900/50 p-4 rounded-2xl border border-slate-700 flex flex-col justify-between hover:border-slate-500 transition-colors relative">
+                      {unreadCount > 0 && (
+                        <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center border-2 border-slate-800 z-10 animate-bounce">
+                          {unreadCount}
+                        </div>
+                      )}
                       <div className="cursor-pointer mb-4" onClick={() => setSelectedTeacher(teacher)}>
                         <div className="flex items-center space-x-3 mb-2">
                           <div className="w-10 h-10 bg-slate-700 rounded-full flex items-center justify-center font-bold text-white">
