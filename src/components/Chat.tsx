@@ -15,6 +15,13 @@ interface Message {
   imageUrl?: string;
 }
 
+interface CognitiveState {
+  complexityLevel: number;
+  masteredConcepts: string[];
+  strugglingConcepts: string[];
+  learningStyle: string;
+}
+
 export default function Chat() {
   const router = useRouter();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -25,6 +32,7 @@ export default function Chat() {
   const [isCallMode, setIsCallMode] = useState(false);
   const isCallModeRef = useRef(false);
   const [profile, setProfile] = useState<{name: string, subject: string, level?: string, standard?: string, language?: string} | null>(null);
+  const [cognitiveState, setCognitiveState] = useState<CognitiveState | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
@@ -41,6 +49,9 @@ export default function Chat() {
       if (p) {
         setProfile(p);
         
+        const cs = await loadData(`edu_cognitive_${p.subject}`);
+        if (cs) setCognitiveState(cs);
+
         const savedChats = await loadData(`edu_chats_${p.subject}`);
         if (savedChats && Array.isArray(savedChats) && savedChats.length > 0) {
           setMessages(savedChats);
@@ -111,7 +122,7 @@ export default function Chat() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: [...messages, userMessage], profile })
+        body: JSON.stringify({ messages: [...messages, userMessage], profile, cognitiveState })
       });
       const data = await res.json();
       if (data.reply) {
@@ -198,7 +209,8 @@ export default function Chat() {
         body: JSON.stringify({ 
           messages: [...messages, userMessage],
           profile,
-          action: customAction 
+          action: customAction,
+          cognitiveState
         })
       });
 
@@ -214,6 +226,29 @@ export default function Chat() {
         const xpStr = await loadData(`edu_xp_${profile.subject}`);
         const currentXP = parseInt(xpStr || "0");
         await saveData(`edu_xp_${profile.subject}`, (currentXP + 10).toString());
+        
+        // Background continuous assessment loop
+        const userMsgCount = messages.filter(m => m.role === "user").length + 1;
+        if (userMsgCount % 3 === 0) {
+          fetch("/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              messages: [...messages, userMessage, { role: "assistant", content: data.reply }],
+              profile,
+              action: "analyze_state"
+            })
+          }).then(r => r.json()).then(async d => {
+            if (d.reply) {
+              try {
+                const newState = JSON.parse(d.reply);
+                setCognitiveState(newState);
+                await saveData(`edu_cognitive_${profile.subject}`, newState);
+                toast.success("Cognitive Profile updated based on chat!");
+              } catch(e) {}
+            }
+          }).catch(console.error);
+        }
       }
     } catch (error) {
       console.error(error);
@@ -291,8 +326,18 @@ export default function Chat() {
             <Sparkles className="w-5 h-5 text-blue-400" />
           </div>
           <div>
-            <h1 className="font-bold text-lg leading-tight">EduBridge AI</h1>
-            <p className="text-xs text-slate-400 hidden sm:block">{profile.subject} • {profile.standard || profile.level}</p>
+            <h1 className="font-bold text-lg leading-tight flex items-center space-x-2">
+              <span>EduBridge AI</span>
+              {cognitiveState && (
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/30 font-semibold" title="Complexity Level">
+                  Lvl {cognitiveState.complexityLevel}
+                </span>
+              )}
+            </h1>
+            <p className="text-xs text-slate-400 hidden sm:block">
+              {profile.subject} • {profile.standard || profile.level}
+              {cognitiveState?.learningStyle ? ` • ${cognitiveState.learningStyle}` : ""}
+            </p>
           </div>
         </div>
         <div className="flex items-center space-x-2">

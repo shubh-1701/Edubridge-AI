@@ -13,10 +13,18 @@ interface RoadmapStep {
   description: string;
 }
 
+interface CognitiveState {
+  complexityLevel: number;
+  masteredConcepts: string[];
+  strugglingConcepts: string[];
+  learningStyle: string;
+}
+
 export default function Dashboard() {
   const router = useRouter();
   const [profile, setProfile] = useState<{name: string, subject: string, level?: string, standard?: string, language?: string} | null>(null);
   const [xp, setXp] = useState(0);
+  const [cognitiveState, setCognitiveState] = useState<CognitiveState | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [roadmap, setRoadmap] = useState<RoadmapStep[]>([]);
   const [isLoadingRoadmap, setIsLoadingRoadmap] = useState(false);
@@ -47,6 +55,9 @@ export default function Dashboard() {
       if (p && p.subject) {
         const storedXp = await loadData(`edu_xp_${p.subject}`);
         setXp(parseInt(storedXp || "0"));
+        
+        const cs = await loadData(`edu_cognitive_${p.subject}`);
+        if (cs) setCognitiveState(cs);
       } else {
         setXp(0);
       }
@@ -303,6 +314,57 @@ export default function Dashboard() {
           </div>
           <p className="text-xs text-right text-slate-500">{Math.max(0, nextGoal - xp)} XP to next rank</p>
         </motion.div>
+
+        {/* Cognitive Profile */}
+        {cognitiveState && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
+            className="bg-slate-800 border border-slate-700 p-6 rounded-3xl"
+          >
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="bg-emerald-500/20 p-2 rounded-xl">
+                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+              </div>
+              <h3 className="text-lg font-bold text-white flex items-center">
+                Cognitive Profile
+                <span className="ml-3 text-[10px] bg-slate-700 text-slate-300 px-2 py-1 rounded-full border border-slate-600 font-medium">Live Syncing</span>
+              </h3>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-700/50">
+                <p className="text-xs text-slate-400 font-medium mb-1">Complexity Tolerance</p>
+                <div className="text-xl font-bold text-emerald-400">Level {cognitiveState.complexityLevel}<span className="text-sm text-slate-500">/10</span></div>
+              </div>
+              <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-700/50">
+                <p className="text-xs text-slate-400 font-medium mb-1">Learning Style</p>
+                <div className="text-sm font-bold text-blue-400 mt-1">{cognitiveState.learningStyle || "Adaptive"}</div>
+              </div>
+            </div>
+            
+            {cognitiveState.masteredConcepts?.length > 0 && (
+              <div className="mb-4">
+                <p className="text-xs text-slate-400 font-medium mb-2">Recently Mastered</p>
+                <div className="flex flex-wrap gap-2">
+                  {cognitiveState.masteredConcepts.map((c, i) => (
+                    <span key={i} className="text-xs bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-lg border border-emerald-500/20">{c}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {cognitiveState.strugglingConcepts?.length > 0 && (
+              <div>
+                <p className="text-xs text-slate-400 font-medium mb-2">Focus Areas</p>
+                <div className="flex flex-wrap gap-2">
+                  {cognitiveState.strugglingConcepts.map((c, i) => (
+                    <span key={i} className="text-xs bg-orange-500/10 text-orange-400 px-2.5 py-1 rounded-lg border border-orange-500/20">{c}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
 
         {/* Study Roadmap */}
         <motion.div 

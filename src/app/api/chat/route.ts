@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { Groq } from 'groq-sdk';
 
-function buildSystemPrompt(profile: any, action: string) {
+function buildSystemPrompt(profile: any, action: string, cognitiveState?: any) {
   const standard = profile.standard || profile.level;
   
   const complexity = `Adjust your vocabulary, sentence structure, and core concepts to perfectly match a student in ${standard}. Explain things using analogies appropriate for their age group. Avoid overly complex jargon unless it is part of the curriculum for ${standard}.`;
@@ -15,8 +15,18 @@ function buildSystemPrompt(profile: any, action: string) {
   let prompt = `You are EduBridge AI, a friendly, patient, and highly encouraging AI tutor specifically designed for underserved students. 
 Your student's name is ${profile.name}. 
 They are in ${standard} and learning ${profile.subject}.
+`;
 
-CRITICAL REQUIREMENT: You MUST respond entirely in ${baseLanguage}.
+  if (cognitiveState) {
+    prompt += `\nCRITICAL PEDAGOGICAL CONTEXT (COGNITIVE STATE):
+- Current Complexity Tolerance: Level ${cognitiveState.complexityLevel || 5}/10
+- Mastered Concepts: ${cognitiveState.masteredConcepts?.join(", ") || "None yet"}
+- Struggling Concepts: ${cognitiveState.strugglingConcepts?.join(", ") || "None yet"}
+- Estimated Learning Style: ${cognitiveState.learningStyle || "General"}
+ADAPT your explanation strictly to this cognitive state. Bridge their specific struggling concepts using analogies related to their mastered concepts. Adjust vocabulary to match their complexity tolerance.\n\n`;
+  }
+
+  prompt += `CRITICAL REQUIREMENT: You MUST respond entirely in ${baseLanguage}.
 
 CORE INSTRUCTIONS:
 1. ${complexity}
@@ -44,19 +54,37 @@ Format strictly as:
   { "question": "Question 3 here?", "answer": "Answer 3 here." }
 ]`;
   }
+  
+  if (action === "analyze_state") {
+    prompt = `You are an expert Educational Data Scientist analyzing a chat log between an AI Tutor and a student (${profile.name}, studying ${profile.subject}).
+Analyze the provided recent chat history and determine the student's CURRENT cognitive state.
+CRITICAL: You MUST respond ONLY with a raw JSON object. Do not include markdown blocks. Do not include any text outside the JSON.
+Format exactly as:
+{
+  "complexityLevel": 5,
+  "masteredConcepts": ["Concept 1", "Concept 2"],
+  "strugglingConcepts": ["Concept 3"],
+  "learningStyle": "Visual"
+}
+Rules:
+- complexityLevel: Integer 1-10. Increase if they are answering well, decrease if struggling.
+- masteredConcepts: Max 5 recent concepts they demonstrated understanding of.
+- strugglingConcepts: Max 3 concepts they are currently confused about.
+- learningStyle: e.g. Visual, Analytical, Practical, etc. based on what analogies worked.`;
+  }
 
   return prompt;
 }
 
 export async function POST(req: Request) {
   try {
-    const { messages, profile, action } = await req.json();
+    const { messages, profile, action, cognitiveState } = await req.json();
 
     if (!profile) {
       return NextResponse.json({ error: "Profile missing" }, { status: 400 });
     }
 
-    const systemPrompt = buildSystemPrompt(profile, action);
+    const systemPrompt = buildSystemPrompt(profile, action, cognitiveState);
     
     const formattedMessages = messages.map((msg: any) => {
       if (msg.role === "user" && msg.imageUrl) {
@@ -71,9 +99,9 @@ export async function POST(req: Request) {
       return { role: msg.role, content: msg.content };
     });
 
-    // For quiz action, we don't pass the whole history to save tokens, just the last few messages for context.
-    const apiMessages = action === "quiz" 
-      ? [{ role: "system", content: systemPrompt }, ...formattedMessages.slice(-4)] 
+    // For quiz and analyze_state, we don't pass the whole history to save tokens, just the last few messages for context.
+    const apiMessages = (action === "quiz" || action === "analyze_state")
+      ? [{ role: "system", content: systemPrompt }, ...formattedMessages.slice(-6)] 
       : [{ role: "system", content: systemPrompt }, ...formattedMessages];
     
     // Determine if we need the vision model
@@ -86,6 +114,9 @@ export async function POST(req: Request) {
       
       if (action === "quiz") {
         return NextResponse.json({ reply: '[{"question": "What is the core concept we just discussed?", "answer": "The core concept."}, {"question": "How do you apply it?", "answer": "By practicing."}, {"question": "What is the next step?", "answer": "Mastery."}]' });
+      }
+      if (action === "analyze_state") {
+        return NextResponse.json({ reply: '{"complexityLevel": 6, "masteredConcepts": ["Basic principles", "Foundations"], "strugglingConcepts": ["Advanced edge cases"], "learningStyle": "Visual & Practical"}' });
       }
       const std = profile.standard || profile.level || "";
       if (std.includes("6") || std.includes("7") || std.includes("Primary")) {
@@ -106,14 +137,14 @@ export async function POST(req: Request) {
     const chatCompletion = await groq.chat.completions.create({
       messages: apiMessages as any,
       model: hasVision ? "meta-llama/llama-4-scout-17b-16e-instruct" : "llama-3.1-8b-instant",
-      temperature: action === "quiz" ? 0.2 : 0.7,
-      max_tokens: action === "quiz" ? 500 : 1024,
+      temperature: (action === "quiz" || action === "analyze_state") ? 0.2 : 0.7,
+      max_tokens: action === "quiz" ? 500 : (action === "analyze_state" ? 400 : 1024),
     });
 
     let reply = chatCompletion.choices[0]?.message?.content || "I'm sorry, I couldn't process that right now.";
     
     // Clean up markdown block if Groq stubbornly adds it for JSON
-    if (action === "quiz") {
+    if (action === "quiz" || action === "analyze_state") {
       reply = reply.replace(/```json/gi, "").replace(/```/g, "").trim();
     }
 
