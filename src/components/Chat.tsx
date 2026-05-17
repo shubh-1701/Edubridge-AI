@@ -260,48 +260,48 @@ export default function Chat() {
   };
 
   const downloadPDF = async () => {
-    if (typeof window === "undefined" || !chatContainerRef.current) return;
+    if (typeof window === "undefined" || messages.length === 0) {
+      toast.error("No chat history to download.");
+      return;
+    }
     
     const loadingToast = toast.loading("Generating PDF... Please wait.");
     
-    // Temp fix for html2canvas long-chat overflow bug
-    const element = chatContainerRef.current;
-    const originalOverflow = element.style.overflow;
-    const originalHeight = element.style.height;
-    
-    element.style.overflow = 'visible';
-    element.style.height = 'auto';
-
     try {
       const html2pdf = (await import("html2pdf.js")).default;
+      
+      // Generate a clean HTML string from messages to prevent html2canvas from crashing on complex UI/scrolls
+      const htmlContent = `
+        <div style="padding: 40px; font-family: sans-serif; color: #333;">
+          <h2 style="color: #2563eb; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px;">EduBridge AI - ${profile?.subject || 'Learning'} Notes</h2>
+          <p style="color: #6b7280; font-size: 14px;">Student: ${profile?.name} | Standard: ${profile?.standard || profile?.level}</p>
+          <div style="margin-top: 30px;">
+            ${messages.map(m => `
+              <div style="margin-bottom: 24px; padding: 15px; border-radius: 8px; background-color: ${m.role === 'user' ? '#eff6ff' : '#f8fafc'}; border: 1px solid ${m.role === 'user' ? '#bfdbfe' : '#e2e8f0'};">
+                <strong style="color: ${m.role === 'user' ? '#1d4ed8' : '#475569'};">${m.role === 'user' ? 'You' : 'AI Tutor'}</strong>
+                <div style="margin-top: 8px; line-height: 1.6; font-size: 14px; white-space: pre-wrap;">
+                  ${m.content.replace(/</g, '&lt;').replace(/>/g, '&gt;')}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+
       const opt: any = {
         margin:       0.5,
         filename:     `${profile?.subject || 'EduBridge'}_Notes.pdf`,
         image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { 
-          scale: 2, 
-          useCORS: true, 
-          logging: false, 
-          scrollY: 0,
-          windowHeight: element.scrollHeight
-        },
+        html2canvas:  { scale: 2, useCORS: true, logging: false },
         jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
       };
       
-      await html2pdf().set(opt).from(element).save();
+      // Pass the raw HTML string instead of a DOM node
+      await html2pdf().set(opt).from(htmlContent).save();
       toast.success("PDF Downloaded Successfully!", { id: loadingToast });
     } catch (error) {
       console.error("PDF generation failed:", error);
-      toast.error("Failed to generate PDF. The chat might be too long.", { id: loadingToast });
-      
-      document.querySelectorAll('iframe').forEach(iframe => {
-        if (iframe.style.position === 'fixed' && iframe.style.opacity === '0') {
-          iframe.remove();
-        }
-      });
-    } finally {
-      element.style.overflow = originalOverflow;
-      element.style.height = originalHeight;
+      toast.error("Failed to generate PDF.", { id: loadingToast });
     }
   };
 
