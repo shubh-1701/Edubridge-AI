@@ -118,7 +118,7 @@ export default function Dashboard() {
     return () => {
       if (unsubscribe) unsubscribe();
     };
-  }, [profile]);
+  }, [profile?.subject, (profile as any)?.classCode]);
 
   // Listen for available teachers for current subject
   useEffect(() => {
